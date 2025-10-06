@@ -1,0 +1,40 @@
+body, html {
+  margin: 0; padding: 0; width: 100%; height: 100%;
+  overflow: hidden; background: #000;
+  font-family: "Noto Sans", system-ui, sans-serif;
+}
+#webgl {
+  width: 100vw; height: 100vh;
+  display: block;
+  position: fixed;
+  top: 0; left: 0;
+}
+#ui { position: fixed; inset: 0; pointer-events: none; }
+#crosshair {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: 14px; height: 14px; border-radius: 50%; border: 2px solid #000; opacity: 0.7;
+}
+#hint {
+  position: absolute; left: 50%; bottom: 12%; transform: translateX(-50%);
+  color: #000; font-size: 14px; opacity: 0.6; user-select: none;
+}
+#debug-ui {
+  position: fixed; top: 10px; left: 10px;
+  background: rgba(0, 0, 0, 0.9); color: #fff;
+  padding: 15px; border-radius: 8px;
+  font-size: 14px; pointer-events: auto;
+  z-index: 10000;
+  max-width: 300px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+}
+#debug-ui h3 { margin: 0 0 10px 0; font-size: 16px; }
+#debug-ui label { display: block; margin: 5px 0; cursor: pointer; }
+#debug-ui input[type="checkbox"] { margin-right: 8px; cursor: pointer; }
+#debug-ui button {
+  margin-top: 10px; padding: 5px 10px;
+  background: #444; color: #fff; border: 1px solid #666;
+  border-radius: 4px; cursor: pointer;
+}
+#debug-ui button:hover { background: #555; }
+#debug-ui.hidden { display: none; }
+

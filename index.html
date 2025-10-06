@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Project Aperture-WebGL</title>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://esm.sh/three@0.158.0",
+      "three/examples/jsm/controls/PointerLockControls.js": "https://esm.sh/three@0.158.0/examples/jsm/controls/PointerLockControls.js"
+    }
+  }
+  </script>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <canvas id="webgl"></canvas>
+  <div id="ui">
+    <div id="crosshair"></div>
+    <div id="hint">Click to lock mouse. LMB: Blue portal, RMB: Orange portal</div>
+  </div>
+  <div id="debug-ui" style="display: none;">
+    <h3>Stencil Test</h3>
+    <label><input type="checkbox" id="stepA"> Step A: Draw stencil mask (quad)</label><br>
+    <label><input type="checkbox" id="stepB"> Step B: Draw sphere (only visible where stencil=1)</label><br>
+    <hr>
+    <h3>Portal Rendering</h3>
+    <label><input type="checkbox" id="step0" checked> Step 0: Main Scene</label><br>
+    <label><input type="checkbox" id="step1a" checked> Step 1a: Blue Portal Mask</label><br>
+    <label><input type="checkbox" id="step1b" checked> Step 1b: Blue Portal View</label><br>
+    <label><input type="checkbox" id="step2" checked> Step 2: Orange Portal View (back)</label><br>
+    <label><input type="checkbox" id="step3" checked> Step 3: Portal Borders</label><br>
+    <button id="toggleDebug">Hide Debug UI</button>
+  </div>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
+
