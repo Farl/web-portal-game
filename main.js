@@ -19,6 +19,14 @@ scene.add(camera);
 const fps = new FPSController(camera, renderer.domElement);
 scene.add(fps.object);
 
+// Orientation correction for horizontal portals (floor/ceiling)
+let orientationCorrection = null; // { startQuat, startTime, duration }
+
+// State for interaction
+let grabbedCube = null;
+const grabDistance = 1.8; // Distance from camera center to cube center
+const throwStrength = 15.0; // Initial velocity boost
+
 // Lighting
 const hemi = new THREE.HemisphereLight(0xffffff, 0xaaaaaa, 0.6);
 scene.add(hemi);
@@ -30,7 +38,10 @@ scene.add(dir);
 // Test chamber: simple room
 const chamber = new THREE.Group();
 scene.add(chamber);
-const chamberBounds = new THREE.Box3(new THREE.Vector3(-6, 0, -6), new THREE.Vector3(6, 6, 6));
+const chamberBounds = new THREE.Box3(
+  new THREE.Vector3(-5.9, 0.1, -5.9),
+  new THREE.Vector3(5.9, 5.9, 5.9)
+);
 
 // Create grid texture helper function
 function createGridTexture(baseColor, gridColor = '#000000', divisions = 24, opacity = 0.25) {
@@ -98,7 +109,7 @@ const floor = makeWall(12, 0.2, 12, 0,  0, 0, 0, 0, 0, 0xcccccc, true); // floor
 makeWall(12, 0.2, 12, 0,  6, 0, 0, 0, 0, 0x999999, true); // ceiling with grid
 
 // Cube
-const cube = new PhysicsCube(0.6);
+const cube = new PhysicsCube(0.2);
 cube.position.set(0, 2, 0);
 scene.add(cube);
 
@@ -122,20 +133,20 @@ maskScene.add(orangeMask);
   if (backWall) {
     blue.placeAt({
       object: backWall,
-      point: backWall.localToWorld(new THREE.Vector3(0, 1.6, 0.1)),
+      point: backWall.localToWorld(new THREE.Vector3(0, -2, 0.1)),
       face: { normal: new THREE.Vector3(0, 0, 1) }
     });
   }
   if (frontWall) {
     orange.placeAt({
       object: frontWall,
-      point: frontWall.localToWorld(new THREE.Vector3(0, 1.6, -0.1)),
+      point: frontWall.localToWorld(new THREE.Vector3(0, -2, -0.1)),
       face: { normal: new THREE.Vector3(0, 0, -1) }
     });
   }
 })();
 
-// Raycaster for placement
+// Raycaster for placement/grabbing
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
@@ -169,6 +180,69 @@ renderer.domElement.addEventListener("mousedown", (e) => {
   if (e.button === 2) placePortal(e, orange);
 });
 
+// E key listener for grabbing/releasing
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'e' || e.key === 'E') {
+    if (!fps.enabled) return;
+    
+    if (grabbedCube) {
+      // Release/Shoot the cube
+      
+      const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+      
+      // Add player's forward momentum component for velocity carry
+      const playerVelocity = fps.velocity.clone();
+      const momentumCarry = playerVelocity.dot(forward); 
+      
+      grabbedCube.velocity.copy(forward).multiplyScalar(throwStrength + Math.max(0, momentumCarry));
+      
+      grabbedCube.isGrabbed = false;
+      grabbedCube = null;
+      
+      // Update hint
+      document.getElementById('hint').textContent = "Click to lock mouse. LMB: Blue portal, RMB: Orange portal. E: Grab/Throw cube.";
+      
+    } else {
+      // Try to grab a cube
+      
+      // Raycast from camera center
+      raycaster.setFromCamera(mouse.set(0, 0), camera); 
+      
+      // Identify all meshes belonging to dynamic objects (e.g., the cube)
+      const meshesToTest = scene.children
+        .filter(c => c.userData.dynamic)
+        .flatMap(obj => {
+            const meshes = [];
+            obj.traverse(child => {
+                if (child.isMesh) meshes.push(child);
+            });
+            return meshes;
+        });
+
+      const intersects = raycaster.intersectObjects(meshesToTest, false);
+
+      if (intersects.length > 0) {
+        const hit = intersects[0];
+        const cubeCandidate = hit.object; // Fix: hit.object is the PhysicsCube instance (which is a Mesh), not its parent (which is the Scene).
+        
+        if (hit.distance <= grabDistance * 1.5 && cubeCandidate.userData.dynamic) { 
+          grabbedCube = cubeCandidate;
+          grabbedCube.isGrabbed = true;
+          grabbedCube.velocity.set(0, 0, 0); // Stop movement immediately
+          
+          // Set initial position based on fixed grab distance
+          const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+          const targetWorldPosition = camera.position.clone().addScaledVector(forward, grabDistance);
+          grabbedCube.position.copy(targetWorldPosition); 
+          
+          // Update hint
+          document.getElementById('hint').textContent = "E: Release cube (Throw Strength: " + throwStrength.toFixed(1) + ")";
+        }
+      }
+    }
+  }
+});
+
 // Player collision and portal traversal
 function resolvePlayerCollision(prev, next) {
   // Clamp to chamber bounds
@@ -189,6 +263,12 @@ function resolvePlayerCollision(prev, next) {
     const triggerDistance = p.radius * 1.5;
 
     if (distToPortal < triggerDistance) {
+      const moveDir = new THREE.Vector3().subVectors(pos, prev);
+      if (moveDir.lengthSq() < 0.001) continue;
+      moveDir.normalize();
+
+      const dotProduct = moveDir.dot(portalNormal);
+
       // Determine portal type
       const isHorizontal = Math.abs(portalNormal.y) > 0.7;
       const isFloor = isHorizontal && portalNormal.y > 0; // normal points up
@@ -197,32 +277,13 @@ function resolvePlayerCollision(prev, next) {
       let shouldTrigger = false;
 
       if (isFloor) {
-        // Floor portal: trigger if standing on it (gravity pulls down) OR moving towards it
-        const moveDir = new THREE.Vector3().subVectors(pos, prev);
-        const isStationary = moveDir.lengthSq() < 0.001;
-
-        if (isStationary) {
-          // Standing on floor portal - check if gravity is pulling down
-          shouldTrigger = fps.velocity.y <= 0;
-        } else {
-          // Moving - check direction and velocity
-          moveDir.normalize();
-          const dotProduct = moveDir.dot(portalNormal);
-          shouldTrigger = dotProduct < -0.3 || fps.velocity.y < -1.0;
-        }
+        // Floor portal: trigger if moving towards OR falling down
+        shouldTrigger = dotProduct < -0.3 || fps.velocity.y < -1.0;
       } else if (isCeiling) {
         // Ceiling portal: trigger if moving towards OR jumping up
-        const moveDir = new THREE.Vector3().subVectors(pos, prev);
-        if (moveDir.lengthSq() < 0.001) continue;
-        moveDir.normalize();
-        const dotProduct = moveDir.dot(portalNormal);
         shouldTrigger = dotProduct < -0.3 || fps.velocity.y > 1.0;
       } else {
         // Wall portal: only trigger if moving towards
-        const moveDir = new THREE.Vector3().subVectors(pos, prev);
-        if (moveDir.lengthSq() < 0.001) continue;
-        moveDir.normalize();
-        const dotProduct = moveDir.dot(portalNormal);
         shouldTrigger = dotProduct < -0.3;
       }
 
@@ -232,19 +293,36 @@ function resolvePlayerCollision(prev, next) {
           quaternion: fps.object.quaternion.clone(),
           velocity: fps.velocity.clone()
         });
+        
+        // --- CUBE TRAVERSAL WHEN HELD ---
+        if (grabbedCube) {
+            // Transform the held cube using the same portal transformation
+            const { position: cubePosNew, quaternion: cubeQuatNew } = p.transformThrough({
+                position: grabbedCube.position,
+                quaternion: grabbedCube.quaternion.clone(),
+                velocity: new THREE.Vector3(0, 0, 0)
+            });
+
+            grabbedCube.position.copy(cubePosNew);
+            // We rely on the animate loop to reset rotation and reposition relative to the camera
+        }
+
         fps.object.position.copy(transformed.position);
         fps.object.quaternion.copy(transformed.quaternion);
         fps.velocity.copy(transformed.velocity);
 
-        // Add extra velocity to push player away from exit portal
-        // Get exit portal normal (pointing outward)
-        const exitNormal = new THREE.Vector3(0, 0, 1)
-          .applyQuaternion(p.linked.getWorldQuaternion(new THREE.Quaternion()))
-          .normalize();
+        // Check if exit portal is horizontal (floor/ceiling)
+        const linkedNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(p.linked.getWorldQuaternion(new THREE.Quaternion())).normalize();
+        const exitIsHorizontal = Math.abs(linkedNormal.y) > 0.7;
 
-        // Add boost velocity in the direction of exit portal normal
-        const exitBoost = 8.0; // Boost strength (m/s) - strong enough to overcome gravity
-        fps.velocity.addScaledVector(exitNormal, exitBoost);
+        if (exitIsHorizontal) {
+          // Start Y-axis correction over 0.5 seconds
+          orientationCorrection = {
+            startQuat: fps.object.quaternion.clone(),
+            startTime: performance.now(),
+            duration: 500
+          };
+        }
 
         return fps.object.position.clone();
       }
@@ -340,25 +418,51 @@ function animate(t) {
   const dt = Math.min((t - lastT) / 1000, 0.05);
   lastT = t;
 
-  // Always apply smooth orientation correction to Y-up for player object
-  // Only correct the "roll" (tilt), preserve yaw and pitch
-  // Note: PointerLockControls puts camera as child of fps.object
-  // fps.object handles yaw (left-right), camera handles pitch (up-down)
-  // We only want to fix roll (tilt/rotation around forward axis)
-  const euler = new THREE.Euler().setFromQuaternion(fps.object.quaternion, 'YXZ');
+  // Apply orientation correction (from horizontal portals)
+  if (orientationCorrection) {
+    const elapsed = performance.now() - orientationCorrection.startTime;
+    const progress = Math.min(elapsed / orientationCorrection.duration, 1.0);
 
-  // Check if there's any roll (euler.z)
-  // DO NOT touch euler.x (pitch) - that would lock camera up/down movement
-  if (Math.abs(euler.z) > 0.001) {
-    // Slowly lerp roll back to zero
-    const rollCorrection = Math.min(dt * 3.0, 1.0); // 3.0 = correction speed
-    euler.z *= (1.0 - rollCorrection); // Lerp roll to 0
+    // Ease-out cubic
+    const easedT = 1 - Math.pow(1 - progress, 3);
 
-    // Apply corrected rotation
-    fps.object.quaternion.setFromEuler(euler);
+    // Get current forward direction
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(orientationCorrection.startQuat);
+    forward.y = 0;
+    if (forward.lengthSq() > 0.001) {
+      forward.normalize();
+
+      // Target: Y-up orientation
+      const up = new THREE.Vector3(0, 1, 0);
+      const right = new THREE.Vector3().crossVectors(up, forward).normalize();
+      const correctedUp = new THREE.Vector3().crossVectors(forward, right);
+      const rotMatrix = new THREE.Matrix4().makeBasis(right, correctedUp, forward.negate());
+      const targetQuat = new THREE.Quaternion().setFromRotationMatrix(rotMatrix);
+
+      // Slerp to target
+      fps.object.quaternion.slerpQuaternions(orientationCorrection.startQuat, targetQuat, easedT);
+      orientationCorrection.startQuat.copy(fps.object.quaternion);
+    }
+
+    if (progress >= 1.0) {
+      orientationCorrection = null;
+    }
   }
 
   fps.update(dt, resolvePlayerCollision);
+
+  // Handle grabbed cube position update: Lerp towards target position
+  if (grabbedCube) {
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+    const targetWorldPosition = camera.position.clone().addScaledVector(forward, grabDistance);
+    
+    // Smoothly move the cube to the target position
+    grabbedCube.position.lerp(targetWorldPosition, 0.5); 
+    
+    // Keep cube upright
+    grabbedCube.rotation.set(0, 0, 0); 
+  }
+
   cube.update(dt, chamberBounds, [blue, orange]);
 
   const frameNum = Math.floor(t / 16);
@@ -492,8 +596,8 @@ function animate(t) {
     // renderer.clear(false, true, false);  // Don't clear depth!
 
     // Hide portals to avoid recursive rendering
-    blue.visible = false;
-    orange.visible = false;
+    blue.visible = true;
+    orange.visible = true;
 
     // Temporarily disable scene background (background doesn't respect stencil)
     const originalBackground = scene.background;
@@ -575,8 +679,8 @@ function animate(t) {
     orange.updateVirtualCamera(camera, fps.object);
 
     // c. Render scene where stencil=2
-    blue.visible = false;
-    orange.visible = false;
+    blue.visible = true;
+    orange.visible = true;
 
     // Temporarily disable scene background
     const originalBackground = scene.background;

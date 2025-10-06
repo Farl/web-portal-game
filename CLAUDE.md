@@ -1,6 +1,25 @@
-# CLAUDE.md
+# Simple Portal Game
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## Role
+
+You are a senior game developer developing a WebGL-based portal game.
+
+## Design
+
+### Play Mode
+- Real-time portal rendering using stencil buffer techniques
+- Player traversal through portals with correct position, orientation, and velocity transformations
+- Portal placement on walls, floors, and ceilings
+- Physics simulation for dynamic objects (e.g., cubes) that can also pass through portals
+- Pick up and carry objects through portals
+- First-person controls with WASD movement and mouse look
+- Support mobile and desktop browsers
+### Edit Mode
+- Wall/floor/ceiling placement. Grid snapping and axis-aligned rotation.
+- God mode camera fly-around.
+- Test run.
+- Save/load level data (JSON).
+
 
 ## Project Overview
 
