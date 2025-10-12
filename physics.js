@@ -2,30 +2,33 @@ import * as THREE from "three";
 
 // Create grid texture for cube
 function createCubeGridTexture() {
+  const textureSize = 100;
   const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 256;
+  canvas.width = textureSize;
+  canvas.height = textureSize;
   const ctx = canvas.getContext('2d');
 
   // Draw base color (gray)
-  ctx.fillStyle = '#888888';
-  ctx.fillRect(0, 0, 256, 256);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, textureSize, textureSize);
 
   // Draw grid
   ctx.strokeStyle = '#000000';
-  ctx.lineWidth = 1;
-  ctx.globalAlpha = 0.3;
+  ctx.lineWidth = 4;
+  ctx.globalAlpha = 1.0;
 
-  const gridSize = 256 / 12; // 12 divisions
-  for (let i = 0; i <= 12; i++) {
+
+  let div = 2
+  const gridSize = textureSize / div;
+  for (let i = 0; i <= div; i++) {
     ctx.beginPath();
     ctx.moveTo(i * gridSize, 0);
-    ctx.lineTo(i * gridSize, 256);
+    ctx.lineTo(i * gridSize, textureSize);
     ctx.stroke();
 
     ctx.beginPath();
     ctx.moveTo(0, i * gridSize);
-    ctx.lineTo(256, i * gridSize);
+    ctx.lineTo(textureSize, i * gridSize);
     ctx.stroke();
   }
 
@@ -39,6 +42,7 @@ export class PhysicsCube extends THREE.Mesh {
     const texture = createCubeGridTexture();
     super(new THREE.BoxGeometry(size, size, size),
       new THREE.MeshStandardMaterial({
+        color: "#00ffff",
         map: texture,
         roughness: 0.6,
         metalness: 0.0
@@ -52,7 +56,7 @@ export class PhysicsCube extends THREE.Mesh {
     this.portalCooldown = 0; this._lastDebug = 0;
   }
 
-  update(dt, chamberBounds, portals) {
+  update(dt, chamberBounds, portals, obstacles = []) {
     if (this.isGrabbed) {
       // Physics suspended when grabbed. Position is controlled by camera in main.js
       return;
@@ -138,6 +142,33 @@ export class PhysicsCube extends THREE.Mesh {
       const f = Math.max(0, 1 - mu * dt);
       this.velocity.x *= f;
       this.velocity.z *= f;
+    }
+
+    // Obstacle collisions (second floor, door) - simple AABB push-out
+    let onTopSurface = false;
+    for (const obj of obstacles) {
+      const box = new THREE.Box3().setFromObject(obj);
+      const expanded = box.clone().expandByScalar(half);
+      if (expanded.containsPoint(this.position)) {
+        const dMin = expanded.max.clone().sub(this.position);
+        const dMax = this.position.clone().sub(expanded.min);
+        const pen = new THREE.Vector3(
+          Math.min(dMin.x, dMax.x),
+          Math.min(dMin.y, dMax.y),
+          Math.min(dMin.z, dMax.z)
+        );
+        const axis = pen.x < pen.y && pen.x < pen.z ? 'x' : (pen.y < pen.z ? 'y' : 'z');
+        const dir = (this.position[axis] - (expanded.min[axis] + expanded.max[axis]) * 0.5) >= 0 ? 1 : -1;
+        this.position[axis] += pen[axis] * dir;
+        this.velocity[axis] *= -0.3;
+        if (axis === 'y' && dir > 0) onTopSurface = true;
+      }
+    }
+    
+    // Apply same friction when resting on top of second-floor platform
+    if (onTopSurface) {
+      const mu = 6.0, f = Math.max(0, 1 - mu * dt);
+      this.velocity.x *= f; this.velocity.z *= f;
     }
   }
 }

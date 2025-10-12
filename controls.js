@@ -7,6 +7,7 @@ export class FPSController {
     this.velocity = new THREE.Vector3();
     this.direction = new THREE.Vector3();
     this.enabled = false;
+    this.isMobile = window.matchMedia('(pointer: coarse)').matches;
 
     this.moveFwd = false; this.moveBack = false; this.moveLeft = false; this.moveRight = false;
     this.canJump = true;
@@ -14,9 +15,13 @@ export class FPSController {
     this.jumpVel = 5.5;
     this.gravity = 9.8;
 
-    domElement.addEventListener("click", () => this.controls.lock());
-    this.controls.addEventListener("lock", () => (this.enabled = true));
-    this.controls.addEventListener("unlock", () => (this.enabled = false));
+    if (!this.isMobile) {
+      domElement.addEventListener("click", () => this.controls.lock());
+      this.controls.addEventListener("lock", () => (this.enabled = true));
+      this.controls.addEventListener("unlock", () => (this.enabled = false));
+    } else {
+      this.enabled = true; // Mobile: no pointer lock; enable movement by default
+    }
 
     const onKeyDown = (e) => {
       switch (e.code) {
@@ -52,9 +57,21 @@ export class FPSController {
     if (this.moveRight) this.direction.x += 1;
     this.direction.normalize();
 
-    const move = new THREE.Vector3(this.direction.x, 0, this.direction.z)
-      .applyQuaternion(this.object.quaternion)
-      .multiplyScalar(this.speed);
+    // Get player's forward direction and project it to horizontal plane (xz)
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.object.quaternion);
+    forward.y = 0; // Project to horizontal plane
+    forward.normalize();
+
+    // Get player's right direction (also horizontal)
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.object.quaternion);
+    right.y = 0; // Project to horizontal plane
+    right.normalize();
+
+    // Calculate horizontal movement based on input
+    const move = new THREE.Vector3();
+    move.addScaledVector(forward, -this.direction.z); // Forward/back
+    move.addScaledVector(right, this.direction.x);     // Left/right
+    move.multiplyScalar(this.speed);
 
     // Gravity
     this.velocity.y -= this.gravity * dt;
@@ -73,4 +90,3 @@ export class FPSController {
     }
   }
 }
-

@@ -16,7 +16,7 @@ export class Portal extends THREE.Group {
 
     // Portal border ring (visible ring around the edge)
     // Inner radius slightly larger than portal radius to avoid depth occlusion
-    const ellipseGeo = new THREE.RingGeometry(radius, radius * 1.15, 64, 1, 0, Math.PI * 2);
+    const ellipseGeo = new THREE.RingGeometry(radius * 0.9, radius * 1.15, 64, 1, 0, Math.PI * 2);
     const borderMat = new THREE.MeshStandardMaterial({
       color: color, emissive: color, emissiveIntensity: 2, roughness: 0.2, metalness: 0.0
     });

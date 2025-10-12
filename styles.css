@@ -3,6 +3,10 @@ body, html {
   overflow: hidden; background: #000;
   font-family: "Noto Sans", system-ui, sans-serif;
 }
+* {
+  user-select: none;
+  -webkit-user-select: none;
+}
 #webgl {
   width: 100vw; height: 100vh;
   display: block;
@@ -17,6 +21,22 @@ body, html {
 #hint {
   position: absolute; left: 50%; bottom: 12%; transform: translateX(-50%);
   color: #000; font-size: 14px; opacity: 0.6; user-select: none;
+}
+#throw-gauge {
+  position: absolute; left: 50%; top: calc(50% + 32px); transform: translateX(-50%);
+  width: 280px; height: 10px; background: rgba(0,0,0,0.1);
+  border-radius: 12px; backdrop-filter: blur(8px);
+  border: 1px solid rgba(0,0,0,0.15); pointer-events: none;
+  display: none;
+}
+#throw-gauge.show { display: block; }
+#throw-bar {
+  height: 100%; width: 0%; background: #000; border-radius: 12px;
+  transition: width 80ms ease;
+}
+#throw-gauge #throw-value {
+  position: absolute; top: -22px; left: 0; width: 100%; text-align: center;
+  font-size: 12px; color: #000; opacity: 0.7;
 }
 #debug-ui {
   position: fixed; top: 10px; left: 10px;
@@ -38,4 +58,61 @@ body, html {
 #debug-ui button:hover { background: #555; }
 #debug-ui.hidden { display: none; }
 
-ㄎ
+#level-complete.hidden { display: none; }
+#level-complete {
+  position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+  pointer-events: auto; background: rgba(0,0,0,0.5);
+}
+#level-complete .panel {
+  background: rgba(255,255,255,0.6);
+  color: #000; padding: 24px 28px; border-radius: 18px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.6);
+  backdrop-filter: blur(20px) saturate(120%); -webkit-backdrop-filter: blur(20px) saturate(120%);
+  border: 1px solid rgba(0,0,0,0.08); min-width: 260px; text-align: center;
+}
+#level-complete .panel button {
+  margin-top: 12px; padding: 10px 14px; border-radius: 10px;
+  background: rgba(0,0,0,0.85); color: #fff; border: 1px solid rgba(0,0,0,0.9);
+  transition: transform 120ms ease, opacity 120ms ease;
+}
+
+#mobile-controls { display: none; }
+@media (pointer: coarse) {
+  #mobile-controls { display: block; position: fixed; inset: 0; pointer-events: none; }
+  #left-joystick, #right-joystick {
+    position: absolute; width: 160px; height: 160px; pointer-events: auto;
+    bottom: 24px; background: rgba(0,0,0,0.06); border-radius: 12px;
+  }
+  #left-joystick { left: 24px; }
+  #right-joystick { right: 24px; }
+  #mobile-buttons {
+    position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 10px; pointer-events: auto;
+  }
+  #mobile-buttons button {
+    width: 56px; height: 56px; border-radius: 50%;
+    font-size: 24px; line-height: 1; display: grid; place-items: center;
+    border: 1px solid #222;
+  }
+  #btn-blue { background: #2a7fff; color: #fff; }
+  #btn-orange { background: #ff7a00; color: #fff; }
+  #btn-grab { background: #000; color: #fff; }
+  #hint { display: none; }
+}
+
+#render-scale-control {
+  position: fixed; left: 56px; top: 12px; pointer-events: auto;
+  background: rgba(255,255,255,0.6); color: #000; border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 12px; padding: 8px 10px; backdrop-filter: blur(16px) saturate(120%);
+  font-size: 12px; display: flex; align-items: center; gap: 8px;
+}
+#render-scale-control input[type="range"] { width: 140px; }
+#render-scale-control label { opacity: 0.7; }
+#render-scale-control span { min-width: 42px; text-align: right; opacity: 0.8; }
+
+#menu-toggle {
+  position: fixed; left: 12px; top: 12px; z-index: 1000;
+  background: #000; color: #fff; border: 1px solid #222;
+  border-radius: 8px; padding: 8px 10px; cursor: pointer;
+  pointer-events: auto;
+}

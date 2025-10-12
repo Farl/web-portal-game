@@ -9,17 +9,45 @@
   {
     "imports": {
       "three": "https://esm.sh/three@0.158.0",
-      "three/examples/jsm/controls/PointerLockControls.js": "https://esm.sh/three@0.158.0/examples/jsm/controls/PointerLockControls.js"
+      "three/examples/jsm/controls/PointerLockControls.js": "https://esm.sh/three@0.158.0/examples/jsm/controls/PointerLockControls.js",
+      "nipplejs": "https://esm.sh/nipplejs@0.9.0"
     }
   }
   </script>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <canvas id="webgl"></canvas>
+  <canvas id="webgl" tabindex="0"></canvas>
   <div id="ui">
     <div id="crosshair"></div>
     <div id="hint">Click to lock mouse. LMB: Blue portal, RMB: Orange portal. E: Grab/Throw cube.</div>
+    <div id="mobile-controls">
+      <div id="left-joystick"></div>
+      <div id="right-joystick"></div>
+      <div id="mobile-buttons">
+        <button id="btn-blue" aria-label="Blue portal">🔵</button>
+        <button id="btn-orange" aria-label="Orange portal">🟠</button>
+        <button id="btn-grab" aria-label="Grab/Throw">👊</button>
+      </div>
+    </div>
+    <div id="level-complete" class="hidden">
+      <div class="panel">
+        <h2>Level Complete</h2>
+        <p>You reached the goal.</p>
+        <p id="time-elapsed">Time: 0.00s</p>
+        <button id="retry-btn">Retry Level</button>
+      </div>
+    </div>
+    <div id="throw-gauge">
+      <div id="throw-bar"></div>
+      <span id="throw-value">0 m/s</span>
+    </div>
+    <div id="render-scale-control" style="display: none;">
+      <label for="render-scale">Render scale</label>
+      <input id="render-scale" type="range" min="0.25" max="1" step="0.05" value="1">
+      <span id="render-scale-label">100%</span>
+    </div>
+    <button id="menu-toggle" aria-label="Toggle settings">☰</button>
   </div>
   <div id="debug-ui" style="display: none;">
     <h3>Stencil Test</h3>
@@ -32,7 +60,6 @@
     <label><input type="checkbox" id="step1b" checked> Step 1b: Blue Portal View</label><br>
     <label><input type="checkbox" id="step2" checked> Step 2: Orange Portal View (back)</label><br>
     <label><input type="checkbox" id="step3" checked> Step 3: Portal Borders</label><br>
-    <button id="toggleDebug">Hide Debug UI</button>
   </div>
   <script type="module" src="./main.js"></script>
 </body>
