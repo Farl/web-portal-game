@@ -8,14 +8,25 @@ export class PortalPlacement {
   constructor(chamber, camera) {
     this.chamber = chamber;
     this.camera = camera;
+    this.editorObjects = []; // Additional portalable objects from editor
+  }
+
+  /**
+   * Add editor-placed objects to portalable surfaces
+   */
+  setEditorObjects(objects) {
+    this.editorObjects = objects.filter(obj => obj.userData.portalable);
   }
 
   /**
    * Place portal at raycast intersection
    */
   placePortal(raycaster, portal) {
+    // Combine chamber objects and editor-placed objects
+    const allObjects = [...this.chamber.children, ...this.editorObjects];
+
     const intersects = raycaster
-      .intersectObjects(this.chamber.children, false)
+      .intersectObjects(allObjects, false)
       .filter(i => i.object.userData.portalable);
 
     if (intersects.length === 0) return false;

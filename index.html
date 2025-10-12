@@ -10,6 +10,8 @@
     "imports": {
       "three": "https://esm.sh/three@0.158.0",
       "three/examples/jsm/controls/PointerLockControls.js": "https://esm.sh/three@0.158.0/examples/jsm/controls/PointerLockControls.js",
+      "three/examples/jsm/controls/OrbitControls.js": "https://esm.sh/three@0.158.0/examples/jsm/controls/OrbitControls.js",
+      "three/examples/jsm/controls/TransformControls.js": "https://esm.sh/three@0.158.0/examples/jsm/controls/TransformControls.js",
       "nipplejs": "https://esm.sh/nipplejs@0.9.0"
     }
   }
@@ -18,8 +20,68 @@
 </head>
 <body>
   <canvas id="webgl" tabindex="0"></canvas>
+
+  <!-- Start Menu -->
+  <div id="start-menu" class="menu-overlay">
+    <div class="menu-panel">
+      <h1>Project Aperture</h1>
+      <p class="subtitle">WebGL Portal Demo</p>
+      <div class="menu-buttons">
+        <button id="btn-play-mode" class="menu-btn primary">
+          <span class="btn-icon">🎮</span>
+          <span class="btn-text">Play Mode</span>
+          <span class="btn-desc">Test the level with portals and physics</span>
+        </button>
+        <button id="btn-edit-mode" class="menu-btn desktop-only">
+          <span class="btn-icon">🛠️</span>
+          <span class="btn-text">Edit Mode</span>
+          <span class="btn-desc">Create and modify level geometry</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Mode UI -->
+  <div id="edit-ui" class="hidden">
+    <div class="edit-toolbar">
+      <div class="toolbar-section">
+        <h3>Edit Mode</h3>
+        <button id="btn-exit-edit" class="toolbar-btn">Exit to Menu</button>
+      </div>
+      <div class="toolbar-section">
+        <h4>Place Objects</h4>
+        <button id="btn-place-wall" class="toolbar-btn" data-type="wall">Wall</button>
+        <button id="btn-place-platform" class="toolbar-btn" data-type="platform">Platform</button>
+        <button id="btn-place-cube" class="toolbar-btn" data-type="cube">Cube</button>
+        <button id="btn-place-goal" class="toolbar-btn" data-type="goal">Goal</button>
+        <button id="btn-place-spawner" class="toolbar-btn" data-type="spawner">Player Spawner</button>
+        <label class="toolbar-checkbox">
+          <input type="checkbox" id="portalable-checkbox" checked>
+          <span>Portalable Surface</span>
+        </label>
+      </div>
+      <div class="toolbar-section">
+        <h4>Transform Mode</h4>
+        <button id="btn-translate" class="toolbar-btn active" data-mode="translate">Move (T)</button>
+        <button id="btn-rotate" class="toolbar-btn" data-mode="rotate">Rotate (R)</button>
+        <button id="btn-scale" class="toolbar-btn" data-mode="scale">Scale (S)</button>
+        <button id="btn-delete" class="toolbar-btn danger">Delete (Del)</button>
+      </div>
+      <div class="toolbar-section">
+        <h4>Controls</h4>
+        <p>WASD: Move camera</p>
+        <p>Mouse: Look around</p>
+        <p>Shift: Move down</p>
+        <p>Space: Move up</p>
+        <p>Click: Place/Select object</p>
+        <p>ESC: Deselect</p>
+      </div>
+    </div>
+  </div>
+
   <div id="ui">
     <div id="crosshair"></div>
+    <div id="click-to-play" class="hidden">Click to Play</div>
     <div id="hint">Click to lock mouse. LMB: Blue portal, RMB: Orange portal. E: Grab/Throw cube.</div>
     <div id="mobile-controls">
       <div id="left-joystick"></div>
@@ -48,6 +110,7 @@
       <span id="render-scale-label">100%</span>
     </div>
     <button id="menu-toggle" aria-label="Toggle settings">☰</button>
+    <button id="back-to-menu" style="display: none;" aria-label="Back to menu">🏠</button>
   </div>
   <div id="debug-ui" style="display: none;">
     <h3>Stencil Test</h3>

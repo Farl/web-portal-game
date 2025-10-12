@@ -75,14 +75,6 @@ export class PhysicsCube extends THREE.Mesh {
     for (const p of portals) {
       if (!p.isPlaced || !p.linked?.isPlaced) continue;
       if (this.portalCooldown > 0) {
-        const near = Math.min(
-          Math.abs(p.signedDistanceWorld(prev)),
-          Math.abs(p.signedDistanceWorld(next))
-        ) < 1.2;
-        if (near && performance.now() - this._lastDebug > 200) {
-          console.debug("[PortalCube] skip due to cooldown", { portalColor: p.color.getHexString(), cooldown: this.portalCooldown.toFixed(2) });
-          this._lastDebug = performance.now();
-        }
         continue;
       }
 
@@ -95,11 +87,6 @@ export class PhysicsCube extends THREE.Mesh {
       const crossesFront = (d0 >  half && d1 <=  half);
       const crossesBack  = (d0 < -half && d1 >= -half);
       if (!(crossesFront || crossesBack)) {
-        const near = Math.min(Math.abs(d0), Math.abs(d1)) < 1.2;
-        if (near && performance.now() - this._lastDebug > 200) {
-          console.debug("[PortalCube] no plane crossing", { portalColor: p.color.getHexString(), d0: d0.toFixed(3), d1: d1.toFixed(3), half: half.toFixed(3) });
-          this._lastDebug = performance.now();
-        }
         continue;
       }
 

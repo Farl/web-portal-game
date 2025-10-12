@@ -6,7 +6,9 @@ export class FPSController {
     this.controls = new PointerLockControls(camera, domElement);
     this.velocity = new THREE.Vector3();
     this.direction = new THREE.Vector3();
-    this.enabled = false;
+    this.enabled = false; // Whether movement is active
+    this.allowLock = true; // Whether pointer lock is allowed
+    this.canLockAgain = true; // Prevents rapid lock attempts after unlock
     this.isMobile = window.matchMedia('(pointer: coarse)').matches;
 
     this.moveFwd = false; this.moveBack = false; this.moveLeft = false; this.moveRight = false;
@@ -16,9 +18,43 @@ export class FPSController {
     this.gravity = 9.8;
 
     if (!this.isMobile) {
-      domElement.addEventListener("click", () => this.controls.lock());
-      this.controls.addEventListener("lock", () => (this.enabled = true));
-      this.controls.addEventListener("unlock", () => (this.enabled = false));
+      domElement.addEventListener("click", () => {
+        // Only lock if allowed (not in edit mode, etc.) and cooldown has passed
+        if (this.allowLock && this.canLockAgain) {
+          // Temporarily suppress Three.js pointer lock warnings
+          const originalWarn = console.warn;
+          console.warn = function(...args) {
+            const msg = args[0];
+            if (typeof msg === 'string' && msg.includes('PointerLockControls')) {
+              return; // Suppress this specific warning
+            }
+            originalWarn.apply(console, args);
+          };
+
+          try {
+            this.controls.lock();
+          } catch (e) {
+            // Suppress error - user probably clicked too soon after unlock
+          }
+
+          // Restore console.warn after a brief delay
+          setTimeout(() => {
+            console.warn = originalWarn;
+          }, 50);
+        }
+      });
+      this.controls.addEventListener("lock", () => {
+        this.enabled = true;
+        this.canLockAgain = true;
+      });
+      this.controls.addEventListener("unlock", () => {
+        this.enabled = false;
+        // Prevent locking again for a brief moment (browser security)
+        this.canLockAgain = false;
+        setTimeout(() => {
+          this.canLockAgain = true;
+        }, 1500);
+      });
     } else {
       this.enabled = true; // Mobile: no pointer lock; enable movement by default
     }

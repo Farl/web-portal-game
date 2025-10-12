@@ -18,6 +18,20 @@ export class PlayerController {
   }
 
   /**
+   * Update obstacles list (e.g., when adding editor-placed objects)
+   */
+  setObstacles(obstacles) {
+    this.obstacles = obstacles;
+  }
+
+  /**
+   * Add obstacles to existing list
+   */
+  addObstacles(newObstacles) {
+    this.obstacles = [...this.obstacles, ...newObstacles];
+  }
+
+  /**
    * Resolve player collision and portal traversal
    */
   resolvePlayerCollision(prev, next, portals, dt) {
@@ -100,19 +114,6 @@ export class PlayerController {
           // This means the dot product of velocity and portal normal should be negative
           const velocityDotNormal = this.fps.velocity.dot(portalNormal);
           const movingTowardPortal = velocityDotNormal < -0.1;
-
-          // Debug: Log when near ceiling portal
-          if (planarDist < triggerDistance && Math.abs(this.fps.velocity.y) > 0.1) {
-            console.log('[Ceiling Portal]', {
-              velocityY: this.fps.velocity.y.toFixed(2),
-              threshold: CONFIG.traversal.ceilingVelocityThreshold,
-              hasUpwardVelocity,
-              velocityDotNormal: velocityDotNormal.toFixed(2),
-              movingTowardPortal,
-              planarDist: planarDist.toFixed(2),
-              portalNormalY: portalNormal.y.toFixed(2)
-            });
-          }
 
           shouldTrigger = hasUpwardVelocity && movingTowardPortal;
         } else {

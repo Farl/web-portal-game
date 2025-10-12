@@ -138,13 +138,14 @@ export class LevelBuilder {
       0, 0, 0, colors.ceiling, gridEnabled
     );
 
-    // Second floor platform
+    // Second floor platform (hidden by default, only shown if no editor platform exists)
     const secondFloorHeight = CONFIG.room.secondFloorHeight;
     this.secondFloor = this.makeWall(
       halfRoomScale, wallThickness, halfRoomScale,
       -halfRoomScale / 2, secondFloorHeight, -halfRoomScale / 2,
       0, 0, 0, colors.secondFloor, gridEnabled, true
     );
+    this.secondFloor.visible = false; // Hidden by default
 
     this.obstacles.push(this.secondFloor);
   }
@@ -174,6 +175,7 @@ export class LevelBuilder {
     this.goal.castShadow = true;
     this.goal.receiveShadow = true;
     this.goal.userData.goal = true;
+    this.goal.visible = false; // Hidden by default
 
     this.scene.add(this.goal);
     this.obstacles.push(this.goal);
