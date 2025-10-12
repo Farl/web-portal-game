@@ -97,8 +97,36 @@ class PortalGame {
     this.defaultCube.visible = false; // Hidden by default
     this.sceneManager.scene.add(this.defaultCube);
 
-    // Pass default cube reference to edit mode
+    // Create default player spawner (visual indicator in edit mode)
+    this.defaultSpawner = new THREE.Group();
+    const spawnerGeom = new THREE.CylinderGeometry(0.3, 0.3, 0.1, 16);
+    const spawnerMat = new THREE.MeshStandardMaterial({
+      color: 0x00ff00,
+      emissive: 0x00ff00,
+      emissiveIntensity: 0.3
+    });
+    const spawnerMesh = new THREE.Mesh(spawnerGeom, spawnerMat);
+    spawnerMesh.rotation.x = Math.PI / 2; // Lay flat
+    this.defaultSpawner.add(spawnerMesh);
+
+    // Add arrow to show forward direction
+    const arrowGeom = new THREE.ConeGeometry(0.15, 0.4, 8);
+    const arrowMesh = new THREE.Mesh(arrowGeom, spawnerMat);
+    arrowMesh.position.z = 0.3;
+    arrowMesh.rotation.x = -Math.PI / 2;
+    this.defaultSpawner.add(arrowMesh);
+
+    this.defaultSpawner.position.set(
+      CONFIG.player.startPosition.x,
+      CONFIG.player.startPosition.y,
+      CONFIG.player.startPosition.z
+    );
+    this.defaultSpawner.visible = false; // Hidden by default
+    this.sceneManager.scene.add(this.defaultSpawner);
+
+    // Pass default objects references to edit mode
     this.editMode.setDefaultCube(this.defaultCube);
+    this.editMode.setDefaultSpawner(this.defaultSpawner);
   }
 
   setupStartMenu() {
@@ -113,12 +141,21 @@ class PortalGame {
 
   startPlayMode() {
     this.mode = 'play';
+
+    // Hide start menu and show play UI
     document.getElementById('start-menu').classList.add('hidden');
     document.getElementById('ui').classList.remove('hidden');
     document.getElementById('back-to-menu').style.display = 'block';
 
-    // Ensure edit mode is properly exited
-    this.editMode.exit();
+    // Ensure edit mode UI is hidden and controls are disabled
+    document.getElementById('edit-ui').classList.add('hidden');
+    this.editMode.controls.enabled = false;
+    // Ensure transform controls are removed from scene
+    if (this.editMode.transformControls.parent) {
+      this.editMode.scene.remove(this.editMode.transformControls);
+    }
+    this.editMode.transformControls.enabled = false;
+    this.editMode.transformControls.visible = false;
 
     // Re-enable FPS controls (allow pointer lock)
     this.fps.allowLock = true;

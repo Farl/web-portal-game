@@ -56,6 +56,7 @@ export class EditMode {
     // References to default level objects
     this.levelBuilder = null;
     this.defaultCube = null;
+    this.defaultSpawner = null;
 
     this.setupControls();
     this.setupUI();
@@ -558,6 +559,10 @@ export class EditMode {
     this.defaultCube = cube;
   }
 
+  setDefaultSpawner(spawner) {
+    this.defaultSpawner = spawner;
+  }
+
   showDefaultObjects() {
     // Show default level objects in edit mode for reference
     if (this.levelBuilder) {
@@ -570,6 +575,10 @@ export class EditMode {
 
     if (this.defaultCube) {
       this.defaultCube.visible = true;
+    }
+
+    if (this.defaultSpawner) {
+      this.defaultSpawner.visible = true;
     }
   }
 
@@ -585,6 +594,10 @@ export class EditMode {
 
     if (this.defaultCube) {
       this.defaultCube.visible = false;
+    }
+
+    if (this.defaultSpawner) {
+      this.defaultSpawner.visible = false;
     }
   }
 
@@ -610,13 +623,33 @@ export class EditMode {
     // Use raycaster to find object at mouse position
     this.raycaster.setFromCamera(this.mouse, this.camera);
 
-    const intersects = this.raycaster.intersectObjects(this.objects, false);
+    // Create array of all selectable objects (editor-placed + default objects)
+    const selectableObjects = [...this.objects];
+
+    // Add default objects if they're visible
+    if (this.defaultCube && this.defaultCube.visible) {
+      selectableObjects.push(this.defaultCube);
+    }
+    if (this.defaultSpawner && this.defaultSpawner.visible) {
+      selectableObjects.push(this.defaultSpawner);
+    }
+    if (this.levelBuilder) {
+      const goal = this.levelBuilder.getGoal();
+      if (goal && goal.visible) selectableObjects.push(goal);
+
+      const secondFloor = this.levelBuilder.secondFloor;
+      if (secondFloor && secondFloor.visible) selectableObjects.push(secondFloor);
+    }
+
+    const intersects = this.raycaster.intersectObjects(selectableObjects, true);
 
     if (intersects.length > 0) {
-      const obj = intersects[0].object;
-      if (obj.userData.editorPlaced) {
-        this.selectObject(obj);
+      // Find the top-level object (not a child mesh)
+      let obj = intersects[0].object;
+      while (obj.parent && !selectableObjects.includes(obj)) {
+        obj = obj.parent;
       }
+      this.selectObject(obj);
     } else {
       this.deselectObject();
     }
