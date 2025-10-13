@@ -1,7 +1,7 @@
 import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { TransformControls } from "three/examples/jsm/controls/TransformControls.js";
 import { CONFIG } from "./config.js";
+import { PhysicsCube } from "./physics.js";
 
 /**
  * EditMode - Level editor with god camera and object placement
@@ -12,20 +12,17 @@ export class EditMode {
     this.camera = camera;
     this.renderer = renderer;
 
-    // God camera controls - use OrbitControls for free camera movement
-    this.controls = new OrbitControls(camera, renderer.domElement);
-    this.controls.enableDamping = true;
-    this.controls.dampingFactor = 0.05;
-    this.controls.screenSpacePanning = true;
-    this.controls.minDistance = 1;
-    this.controls.maxDistance = 100;
-    this.controls.maxPolarAngle = Math.PI;
-    this.controls.enabled = false; // Disabled by default (only enabled in edit mode)
+    // Yaw/Pitch mouse look controls
+    this.yaw = 0;
+    this.pitch = 0;
+    this.mouseSensitivity = 0.002;
+    this.isMouseLookActive = false;
 
     // Transform controls for gizmos
     this.transformControls = new TransformControls(camera, renderer.domElement);
+    this.isDraggingTransform = false;
     this.transformControls.addEventListener('dragging-changed', (event) => {
-      this.controls.enabled = !event.value;
+      this.isDraggingTransform = event.value;
     });
     this.transformControls.visible = false; // Hidden by default
     this.transformControls.enabled = false; // Disabled by default
@@ -96,6 +93,11 @@ export class EditMode {
 
     // Mouse click to place object or select
     this.renderer.domElement.addEventListener("click", (e) => {
+      // Ignore click if we just finished dragging the transform controls
+      if (this.isDraggingTransform) {
+        return;
+      }
+
       // Update mouse position
       const rect = this.renderer.domElement.getBoundingClientRect();
       this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -108,17 +110,55 @@ export class EditMode {
       }
     });
 
-    // Mouse move for preview
+    // Mouse move for preview and look
     this.renderer.domElement.addEventListener("mousemove", (e) => {
       // Update mouse position
       const rect = this.renderer.domElement.getBoundingClientRect();
       this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
 
+      // Mouse look (right mouse button held)
+      if (this.isMouseLookActive) {
+        this.yaw -= e.movementX * this.mouseSensitivity;
+        this.pitch -= e.movementY * this.mouseSensitivity;
+
+        // Clamp pitch to prevent camera flipping
+        this.pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.pitch));
+
+        this.updateCameraRotation();
+      }
+
       if (this.selectedObjectType) {
         this.updatePreview();
       }
     });
+
+    // Right mouse button for mouse look
+    this.renderer.domElement.addEventListener("mousedown", (e) => {
+      if (e.button === 2) { // Right mouse button
+        this.isMouseLookActive = true;
+        this.renderer.domElement.requestPointerLock();
+      }
+    });
+
+    this.renderer.domElement.addEventListener("mouseup", (e) => {
+      if (e.button === 2) {
+        this.isMouseLookActive = false;
+        document.exitPointerLock();
+      }
+    });
+
+    // Prevent context menu on right click
+    this.renderer.domElement.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+    });
+  }
+
+  updateCameraRotation() {
+    // Apply yaw and pitch to camera rotation
+    this.camera.rotation.order = 'YXZ';
+    this.camera.rotation.y = this.yaw;
+    this.camera.rotation.x = this.pitch;
   }
 
   setupUI() {
@@ -289,8 +329,8 @@ export class EditMode {
     }
   }
 
-  createGridTexture(baseColor, divisions = 3) {
-    const textureSize = 512;
+  createGridTexture(baseColor, divisions = 3, withCrossLines = false) {
+    const textureSize = CONFIG.texture.gridSize;
     const canvas = document.createElement('canvas');
     canvas.width = textureSize;
     canvas.height = textureSize;
@@ -300,10 +340,10 @@ export class EditMode {
     ctx.fillStyle = baseColor;
     ctx.fillRect(0, 0, textureSize, textureSize);
 
-    // Draw grid
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
-    ctx.lineWidth = 2;
-    ctx.globalAlpha = 0.5;
+    // Draw grid - use same style as levelBuilder
+    ctx.strokeStyle = CONFIG.texture.gridColor;
+    ctx.lineWidth = CONFIG.texture.gridLineWidth;
+    ctx.globalAlpha = CONFIG.room.gridOpacity;
 
     const div = 1;
     const gridSize = textureSize / div;
@@ -316,6 +356,24 @@ export class EditMode {
       ctx.beginPath();
       ctx.moveTo(0, i * gridSize);
       ctx.lineTo(textureSize, i * gridSize);
+      ctx.stroke();
+    }
+
+    // Draw cross lines for non-portalable surfaces
+    if (withCrossLines) {
+      ctx.strokeStyle = 'rgba(255, 0, 0, 0.6)';
+      ctx.lineWidth = 3;
+      ctx.globalAlpha = 0.8;
+
+      // Diagonal cross from corner to corner
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(textureSize, textureSize);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(textureSize, 0);
+      ctx.lineTo(0, textureSize);
       ctx.stroke();
     }
 
@@ -332,16 +390,18 @@ export class EditMode {
 
     let material;
     if (isPortalable) {
-      // Use chamber wall color (neutral gray) with grid
-      const texture = this.createGridTexture('#cccccc', 5);
+      // Use chamber wall color (neutral gray) with clean grid
+      const texture = this.createGridTexture('#cccccc', 5, false);
       material = new THREE.MeshStandardMaterial({
         map: texture,
         roughness: 0.9,
         metalness: 0.0
       });
     } else {
+      // Non-portalable: same grid texture but with cross lines
+      const texture = this.createGridTexture('#cccccc', 5, true);
       material = new THREE.MeshStandardMaterial({
-        color: 0x666666,
+        map: texture,
         roughness: 0.9,
         metalness: 0.0
       });
@@ -363,16 +423,18 @@ export class EditMode {
 
     let material;
     if (isPortalable) {
-      // Use second floor grid texture with same color and divisions
-      const texture = this.createGridTexture('#dddddd', 5);
+      // Use second floor grid texture with clean grid
+      const texture = this.createGridTexture('#dddddd', 5, false);
       material = new THREE.MeshStandardMaterial({
         map: texture,
         roughness: 0.9,
         metalness: 0.0
       });
     } else {
+      // Non-portalable: same grid texture but with cross lines
+      const texture = this.createGridTexture('#dddddd', 5, true);
       material = new THREE.MeshStandardMaterial({
-        color: 0x666666,
+        map: texture,
         roughness: 0.9,
         metalness: 0.0
       });
@@ -388,34 +450,26 @@ export class EditMode {
   }
 
   createCube(position) {
-    const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+    // Use PhysicsCube class for full physics behavior
+    const cube = new PhysicsCube(0.2);
+    cube.position.copy(position);
+    cube.userData.editorPlaced = true;
+    // Store initial position for reset
+    cube.userData.initialPosition = position.clone();
+    return cube;
+  }
+
+  createGoal(position) {
+    const geometry = new THREE.BoxGeometry(1, 2, 0.2);
     const material = new THREE.MeshStandardMaterial({
-      color: 0x00ffff,
-      roughness: 0.6,
+      color: 0xFF00FF,
+      roughness: 0.7,
       metalness: 0.0
     });
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.copy(position);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
-    mesh.userData.dynamic = true;
-    mesh.userData.editorPlaced = true;
-    return mesh;
-  }
-
-  createGoal(position) {
-    const geometry = new THREE.BoxGeometry(1, 1, 1);
-    const material = new THREE.MeshStandardMaterial({
-      color: 0xffff00,
-      roughness: 0.4,
-      metalness: 0.1,
-      emissive: 0xffff00,
-      emissiveIntensity: 0.3
-    });
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.copy(position);
-    mesh.castShadow = false;
-    mesh.receiveShadow = false;
     mesh.userData.goal = true;
     mesh.userData.editorPlaced = true;
     return mesh;
@@ -432,29 +486,34 @@ export class EditMode {
       }
     }
 
-    const geometry = new THREE.CylinderGeometry(0.3, 0.3, 1.6, 16);
-    const material = new THREE.MeshStandardMaterial({
+    // Create spawner as Group (same structure as default spawner)
+    const spawnerGroup = new THREE.Group();
+
+    // Cylinder base (same as default)
+    const spawnerGeom = new THREE.CylinderGeometry(0.3, 0.3, 0.1, 16);
+    const spawnerMat = new THREE.MeshStandardMaterial({
       color: 0x00ff00,
-      roughness: 0.5,
-      metalness: 0.2,
       emissive: 0x00ff00,
-      emissiveIntensity: 0.4,
-      transparent: true,
-      opacity: 0.8
+      emissiveIntensity: 0.3
     });
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.copy(position);
-    mesh.castShadow = false;
-    mesh.receiveShadow = false;
-    mesh.userData.spawner = true;
-    mesh.userData.editorPlaced = true;
-    return mesh;
+    const spawnerMesh = new THREE.Mesh(spawnerGeom, spawnerMat);
+    spawnerMesh.rotation.x = Math.PI / 2; // Lay flat
+    spawnerGroup.add(spawnerMesh);
+
+    // Arrow to show forward direction (same as default)
+    const arrowGeom = new THREE.ConeGeometry(0.15, 0.4, 8);
+    const arrowMesh = new THREE.Mesh(arrowGeom, spawnerMat);
+    arrowMesh.position.z = 0.3;
+    arrowMesh.rotation.x = -Math.PI / 2;
+    spawnerGroup.add(arrowMesh);
+
+    spawnerGroup.position.copy(position);
+    spawnerGroup.userData.spawner = true;
+    spawnerGroup.userData.editorPlaced = true;
+    return spawnerGroup;
   }
 
   update(dt) {
-    // Update OrbitControls
-    this.controls.update();
-
     // WASD fly-through movement
     const velocity = new THREE.Vector3();
 
@@ -462,13 +521,21 @@ export class EditMode {
         this.moveState.left || this.moveState.right ||
         this.moveState.up || this.moveState.down) {
 
-      // Get camera direction
+      // Get camera direction (forward/backward)
       const direction = new THREE.Vector3();
-      this.camera.getWorldDirection(direction);
+      direction.set(
+        -Math.sin(this.yaw),
+        0,
+        -Math.cos(this.yaw)
+      ).normalize();
 
-      // Get right vector
+      // Get right vector (left/right)
       const right = new THREE.Vector3();
-      right.crossVectors(direction, this.camera.up).normalize();
+      right.set(
+        Math.cos(this.yaw),
+        0,
+        -Math.sin(this.yaw)
+      ).normalize();
 
       // Calculate movement
       if (this.moveState.forward) velocity.add(direction);
@@ -482,7 +549,6 @@ export class EditMode {
       if (velocity.lengthSq() > 0) {
         velocity.normalize().multiplyScalar(this.moveSpeed * dt);
         this.camera.position.add(velocity);
-        this.controls.target.add(velocity);
       }
     }
 
@@ -498,20 +564,28 @@ export class EditMode {
     document.getElementById('ui').classList.add('hidden');
     document.getElementById('start-menu').classList.add('hidden');
 
-    // Set camera to edit position
-    this.camera.position.set(0, 10, 15);
-    this.controls.target.set(0, 0, 0);
-    this.controls.update();
+    // Set camera to edit position (diagonal opposite corner from second floor, looking at ground center)
+    // Second floor is at (-2.5, 5, -2.5), so camera goes to opposite corner
+    this.camera.position.set(3, 6, 3);
 
-    // Enable orbit controls for edit mode
-    this.controls.enabled = true;
+    // Use lookAt to orient camera toward ground center, then extract yaw/pitch
+    const lookAtTarget = new THREE.Vector3(0, 0, 0);
+    this.camera.lookAt(lookAtTarget);
+
+    // Extract yaw and pitch from the camera's current rotation
+    // Camera rotation order is YXZ
+    this.camera.rotation.order = 'YXZ';
+    this.yaw = this.camera.rotation.y;
+    this.pitch = this.camera.rotation.x;
 
     // Add transform controls back to scene and enable them
     if (!this.transformControls.parent) {
       this.scene.add(this.transformControls);
     }
-    this.transformControls.visible = true;
     this.transformControls.enabled = true;
+    // Don't show gizmos until an object is selected
+    this.transformControls.visible = false;
+    this.transformControls.detach(); // Make sure nothing is attached
 
     // Show default objects for reference
     this.showDefaultObjects();
@@ -535,8 +609,9 @@ export class EditMode {
     this.deselectObject();
     document.querySelectorAll('[data-type]').forEach(b => b.classList.remove('active'));
 
-    // Disable orbit controls when leaving edit mode
-    this.controls.enabled = false;
+    // Disable mouse look
+    this.isMouseLookActive = false;
+    document.exitPointerLock();
 
     // Completely disable and hide transform controls
     this.transformControls.detach(); // Detach from any object
@@ -579,6 +654,19 @@ export class EditMode {
 
     if (this.defaultSpawner) {
       this.defaultSpawner.visible = true;
+      // Ensure all children are also visible
+      this.defaultSpawner.traverse((child) => {
+        if (child.isMesh) {
+          child.visible = true;
+          // Reset stencil properties that may have been set by portal renderer
+          if (child.material) {
+            child.material.stencilWrite = false;
+            child.material.stencilFunc = THREE.AlwaysStencilFunc;
+            child.material.stencilRef = 0;
+            child.material.needsUpdate = true;
+          }
+        }
+      });
     }
   }
 
@@ -598,6 +686,12 @@ export class EditMode {
 
     if (this.defaultSpawner) {
       this.defaultSpawner.visible = false;
+      // Explicitly hide children as well
+      this.defaultSpawner.traverse((child) => {
+        if (child.isMesh) {
+          child.visible = false;
+        }
+      });
     }
   }
 
@@ -658,13 +752,10 @@ export class EditMode {
   selectObject(obj) {
     this.selectedObject = obj;
     this.transformControls.attach(obj);
+    this.transformControls.visible = true; // Show gizmos when object is selected
 
-    // Adjust gizmo size based on object size
-    const box = new THREE.Box3().setFromObject(obj);
-    const size = box.getSize(new THREE.Vector3());
-    const maxDim = Math.max(size.x, size.y, size.z);
-    // Scale gizmo relative to object size (larger objects = larger gizmos)
-    this.transformControls.setSize(maxDim * 0.7);
+    // Use fixed gizmo size regardless of object size
+    this.transformControls.setSize(1.0);
 
     // Clear placement mode when selecting an object
     this.selectedObjectType = null;
@@ -678,6 +769,7 @@ export class EditMode {
   deselectObject() {
     this.selectedObject = null;
     this.transformControls.detach();
+    this.transformControls.visible = false; // Hide gizmos when nothing is selected
   }
 
   setTransformMode(mode) {
@@ -696,8 +788,9 @@ export class EditMode {
       this.objects.splice(index, 1);
     }
 
-    // Detach transform controls
+    // Detach transform controls and hide gizmos
     this.transformControls.detach();
+    this.transformControls.visible = false;
     this.selectedObject = null;
   }
 }

@@ -93,17 +93,16 @@ export class PlayerController {
 
         const dotProduct = moveDir.dot(portalNormal);
 
-        // Foot collider and grounded state
-        const footPos = pos.clone();
-        footPos.y = CONFIG.player.minHeight;
-        const grounded = pos.y <= CONFIG.player.groundedThreshold;
+        // Check if player is grounded (can jump means standing on a surface)
+        const grounded = this.fps.canJump;
 
         let shouldTrigger = false;
 
         if (isFloor) {
-          const toFoot = footPos.clone().sub(portalPos);
-          const off = toFoot.sub(portalNormal.clone().multiplyScalar(toFoot.dot(portalNormal)));
-          const insideAperture = off.length() <= p.radius * CONFIG.traversal.floorApertureMultiplier;
+          // Check if player's XZ position is inside the portal aperture
+          const playerXZ = new THREE.Vector2(pos.x, pos.z);
+          const portalXZ = new THREE.Vector2(portalPos.x, portalPos.z);
+          const insideAperture = playerXZ.distanceTo(portalXZ) <= p.radius * CONFIG.traversal.floorApertureMultiplier;
           shouldTrigger = (grounded && insideAperture) || (dotProduct < CONFIG.traversal.dotProductThreshold.floor);
         } else if (isCeiling) {
           // Ceiling portal should ONLY trigger when player has upward velocity (jumping/flying up)
@@ -179,6 +178,27 @@ export class PlayerController {
     for (const obj of this.obstacles) {
       const box = new THREE.Box3().setFromObject(obj);
       const r = CONFIG.player.radius;
+      const platformTop = box.max.y;
+      const targetGroundHeight = platformTop + CONFIG.player.minHeight;
+
+      // Check if player is standing on this platform (precise check before applying gravity)
+      // Player is considered "on platform" if they are at the correct height, within XZ bounds,
+      // AND not jumping (velocity.y <= 0)
+      const isAtGroundHeight = Math.abs(pos.y - targetGroundHeight) < 0.05;
+      const isWithinPlatformXZ =
+        pos.x >= box.min.x - r && pos.x <= box.max.x + r &&
+        pos.z >= box.min.z - r && pos.z <= box.max.z + r;
+      const isNotJumping = this.fps.velocity.y <= 0;
+
+      if (isAtGroundHeight && isWithinPlatformXZ && isNotJumping) {
+        // Player is standing on this platform - keep them at exact height
+        pos.y = targetGroundHeight;
+        this.fps.velocity.y = 0;
+        this.fps.canJump = true;
+        continue; // Skip collision check for this obstacle
+      }
+
+      // Standard AABB collision for other cases
       const expanded = box.clone().expandByScalar(r);
 
       if (expanded.containsPoint(pos)) {
@@ -190,12 +210,22 @@ export class PlayerController {
           Math.min(dMin.z, dMax.z)
         );
 
+        // Determine which axis has minimum penetration (should be resolved first)
         const axis = pen.x < pen.y && pen.x < pen.z ? 'x' : (pen.y < pen.z ? 'y' : 'z');
         const dir = (pos[axis] - (expanded.min[axis] + expanded.max[axis]) * 0.5) >= 0 ? 1 : -1;
-        pos[axis] += pen[axis] * dir;
 
         if (axis === 'y' && dir > 0) {
-          this.fps.velocity.y = Math.max(0, this.fps.velocity.y);
+          // Player is landing on top of this obstacle (collision from above)
+          pos.y = targetGroundHeight;
+          this.fps.velocity.y = 0;
+          this.fps.canJump = true;
+        } else if (axis === 'y' && dir < 0) {
+          // Hit ceiling from below
+          pos[axis] += pen[axis] * dir;
+          this.fps.velocity.y = Math.min(0, this.fps.velocity.y);
+        } else {
+          // Horizontal collision (x or z axis) - push player out
+          pos[axis] += pen[axis] * dir;
         }
       }
     }

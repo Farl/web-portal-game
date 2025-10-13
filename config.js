@@ -8,7 +8,7 @@ export const CONFIG = {
     stencil: true,
     maxPixelRatio: 2,
     shadowsEnabled: true,
-    backgroundColor: 0xffffff,
+    backgroundColor: 0x000010,
     clearColor: 0x444444,
   },
 

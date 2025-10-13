@@ -149,13 +149,25 @@ class PortalGame {
 
     // Ensure edit mode UI is hidden and controls are disabled
     document.getElementById('edit-ui').classList.add('hidden');
-    this.editMode.controls.enabled = false;
+    this.editMode.isMouseLookActive = false;
+    document.exitPointerLock();
     // Ensure transform controls are removed from scene
     if (this.editMode.transformControls.parent) {
       this.editMode.scene.remove(this.editMode.transformControls);
     }
     this.editMode.transformControls.enabled = false;
     this.editMode.transformControls.visible = false;
+
+    // Hide edit-only objects (spawner, preview, etc)
+    if (this.defaultSpawner) {
+      this.defaultSpawner.visible = false;
+      // Explicitly hide children as well
+      this.defaultSpawner.traverse((child) => {
+        if (child.isMesh) {
+          child.visible = false;
+        }
+      });
+    }
 
     // Re-enable FPS controls (allow pointer lock)
     this.fps.allowLock = true;
@@ -165,10 +177,14 @@ class PortalGame {
       this.setupClickToPlayHint();
     }
 
+    // Reset camera orientation for play mode
+    this.fps.object.rotation.set(0, 0, 0);
+    this.sceneManager.camera.rotation.set(0, 0, 0);
+
     // Get editor-placed objects
     const editorObjects = this.editMode.getPlacedObjects();
 
-    // Set player spawn position from spawner if exists
+    // Set player spawn position and rotation from spawner if exists
     const spawnerPos = this.editMode.getSpawnerPosition();
     if (spawnerPos) {
       this.fps.object.position.set(spawnerPos.x, spawnerPos.y + CONFIG.player.eyeHeight * 0.5, spawnerPos.z);
@@ -211,55 +227,92 @@ class PortalGame {
     }
     this.fps.allowLock = false;
 
-    this.editMode.enter();
-  }
+    // Reset all cubes to their spawn positions
+    this.resetCubesToSpawn();
 
-  setupLevel() {
-    // Check if there are editor-placed cubes
-    const editorCubes = this.editMode.getPlacedObjects().filter(obj => obj.userData.dynamic);
-    const editorGoals = this.editMode.getGoals();
-    const editorPlatforms = this.editMode.getPlacedObjects().filter(obj => !obj.userData.dynamic && !obj.userData.goal && !obj.userData.spawner);
-
-    // Show/hide default cube
-    if (editorCubes.length === 0) {
-      // Use default cube if no editor cubes exist
-      this.cube = this.defaultCube;
-      this.cube.visible = true;
-      // Reset cube position
-      this.cube.position.set(
-        CONFIG.physics.cubeStartPosition.x,
-        CONFIG.physics.cubeStartPosition.y,
-        CONFIG.physics.cubeStartPosition.z
-      );
-      this.cube.velocity.set(0, 0, 0);
-    } else {
-      // Use editor cubes
-      this.cube = null;
-      this.defaultCube.visible = false;
-      this.editorCubes = editorCubes;
-      // Add velocity property if not already present
-      editorCubes.forEach(cube => {
-        if (!cube.velocity) {
-          cube.velocity = new THREE.Vector3(0, 0, 0);
+    // Ensure spawner is visible in edit mode
+    if (this.defaultSpawner) {
+      this.defaultSpawner.visible = true;
+      this.defaultSpawner.traverse((child) => {
+        if (child.isMesh) {
+          child.visible = true;
+          // Reset stencil properties that may have been set by portal renderer
+          if (child.material) {
+            child.material.stencilWrite = false;
+            child.material.stencilFunc = THREE.AlwaysStencilFunc;
+            child.material.stencilRef = 0;
+            child.material.needsUpdate = true;
+          }
         }
       });
     }
 
-    // Show/hide default goal
-    const defaultGoal = this.levelBuilder.getGoal();
-    if (editorGoals.length > 0) {
-      if (defaultGoal) defaultGoal.visible = false;
-    } else {
-      if (defaultGoal) defaultGoal.visible = true;
+    this.editMode.enter();
+  }
+
+  resetCubesToSpawn() {
+    // Reset default cube to spawn position
+    if (this.defaultCube) {
+      this.defaultCube.position.set(
+        CONFIG.physics.cubeStartPosition.x,
+        CONFIG.physics.cubeStartPosition.y,
+        CONFIG.physics.cubeStartPosition.z
+      );
+      this.defaultCube.velocity.set(0, 0, 0);
+      this.defaultCube.rotation.set(0, 0, 0);
     }
 
-    // Show/hide default second floor
+    // Reset editor cubes to their spawn positions
+    const editorCubes = this.editMode.getPlacedObjects().filter(obj => obj.userData.dynamic);
+    editorCubes.forEach(cube => {
+      if (cube.userData.initialPosition) {
+        cube.position.copy(cube.userData.initialPosition);
+      }
+      if (cube.velocity) {
+        cube.velocity.set(0, 0, 0);
+      }
+      cube.rotation.set(0, 0, 0);
+    });
+  }
+
+  setupLevel() {
+    // Check if there are editor-placed objects
+    const editorCubes = this.editMode.getPlacedObjects().filter(obj => obj.userData.dynamic);
+    const editorGoals = this.editMode.getGoals();
+
+    // Always show and reset default cube in play mode
+    this.defaultCube.visible = true;
+    this.defaultCube.position.set(
+      CONFIG.physics.cubeStartPosition.x,
+      CONFIG.physics.cubeStartPosition.y,
+      CONFIG.physics.cubeStartPosition.z
+    );
+    this.defaultCube.velocity.set(0, 0, 0);
+
+    // Set up cube references for physics
+    this.cube = this.defaultCube;
+    this.editorCubes = editorCubes;
+
+    // Reset editor cubes to their spawn positions
+    editorCubes.forEach(cube => {
+      if (!cube.velocity) {
+        cube.velocity = new THREE.Vector3(0, 0, 0);
+      }
+      // Always reset to initial spawn position
+      if (cube.userData.initialPosition) {
+        cube.position.copy(cube.userData.initialPosition);
+      }
+      cube.velocity.set(0, 0, 0);
+      cube.rotation.set(0, 0, 0);
+    });
+
+    // Always show default goal in play mode
+    const defaultGoal = this.levelBuilder.getGoal();
+    if (defaultGoal) defaultGoal.visible = true;
+
+    // Always show default second floor in play mode
     const secondFloor = this.levelBuilder.secondFloor;
-    if (editorPlatforms.length > 0 || editorGoals.length > 0) {
-      if (secondFloor) secondFloor.visible = false;
-    } else {
-      if (secondFloor) secondFloor.visible = true;
-    }
+    if (secondFloor) secondFloor.visible = true;
   }
 
   setupPortals() {
@@ -525,23 +578,29 @@ class PortalGame {
     // Update grabbed cube
     this.interactionSystem.updateGrabbedCube();
 
-    // Update physics cubes (default or editor-placed)
+    // Prepare obstacle list including editor-placed platforms
+    const editorPlatforms = this.editMode.getPlacedObjects().filter(obj => !obj.userData.dynamic && !obj.userData.goal && !obj.userData.spawner);
+    const allObstacles = [...this.levelBuilder.getObstacles(), ...editorPlatforms];
+
+    // Update default physics cube
     if (this.cube) {
       this.cube.update(
         dt,
         this.levelBuilder.getChamberBounds(),
         [this.bluePortal, this.orangePortal],
-        this.levelBuilder.getObstacles()
+        allObstacles
       );
     }
 
-    // Update editor cubes with simple physics
+    // Update editor cubes with full physics (same as default cube)
     if (this.editorCubes) {
-      const allObstacles = [...this.levelBuilder.getObstacles(), ...this.editMode.getPlacedObjects().filter(obj => !obj.userData.dynamic)];
       this.editorCubes.forEach(cube => {
-        if (!cube.isGrabbed) {
-          this.updateSimpleCubePhysics(cube, dt, allObstacles);
-        }
+        cube.update(
+          dt,
+          this.levelBuilder.getChamberBounds(),
+          [this.bluePortal, this.orangePortal],
+          allObstacles
+        );
       });
     }
 
@@ -553,39 +612,6 @@ class PortalGame {
     this.interactionSystem.updateGaugeUI();
   }
 
-  updateSimpleCubePhysics(cube, dt, obstacles) {
-    // Apply gravity
-    cube.velocity.y -= 9.8 * dt;
-
-    // Apply velocity
-    const nextPos = cube.position.clone().add(cube.velocity.clone().multiplyScalar(dt));
-
-    // Check collisions with chamber bounds
-    const bounds = this.levelBuilder.getChamberBounds();
-    const r = 0.25; // cube half-size
-    nextPos.x = THREE.MathUtils.clamp(nextPos.x, bounds.min.x + r, bounds.max.x - r);
-    nextPos.z = THREE.MathUtils.clamp(nextPos.z, bounds.min.z + r, bounds.max.z - r);
-
-    if (nextPos.y - r < bounds.min.y) {
-      nextPos.y = bounds.min.y + r;
-      cube.velocity.y = 0;
-    }
-
-    // Simple obstacle collision (similar to player)
-    for (const obj of obstacles) {
-      const box = new THREE.Box3().setFromObject(obj);
-      const expanded = box.clone().expandByScalar(r);
-
-      if (expanded.containsPoint(nextPos)) {
-        const center = expanded.getCenter(new THREE.Vector3());
-        const dir = nextPos.clone().sub(center).normalize();
-        nextPos.copy(center).add(dir.multiplyScalar(expanded.getSize(new THREE.Vector3()).length() * 0.5 + r));
-        cube.velocity.multiplyScalar(0.5); // Dampen velocity on collision
-      }
-    }
-
-    cube.position.copy(nextPos);
-  }
 
   checkGoalCompletion() {
     if (this.levelCompleted) return;
