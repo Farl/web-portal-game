@@ -24,10 +24,24 @@ export class EditMode {
     this.transformControls.addEventListener('dragging-changed', (event) => {
       this.isDraggingTransform = event.value;
     });
+
+    // Set snapping for transform controls
+    this.transformControls.setTranslationSnap(0.5); // 0.5 unit grid for translation
+    this.transformControls.setRotationSnap(THREE.MathUtils.degToRad(90)); // 90 degrees for rotation
+    this.transformControls.setScaleSnap(0.1); // 0.1 scale snap (0.5 unit increments for 5-unit objects)
+
     this.transformControls.visible = false; // Hidden by default
     this.transformControls.enabled = false; // Disabled by default
     this.scene.add(this.transformControls);
     this.selectedObject = null;
+
+    // Current tool mode
+    this.currentToolMode = 'translate';
+
+    // Selection circle gizmo
+    this.selectionCircle = this.createSelectionCircle();
+    this.scene.add(this.selectionCircle);
+    this.selectionCircle.visible = false;
 
     // WASD movement state
     this.moveState = {
@@ -42,7 +56,7 @@ export class EditMode {
 
     // Edit state
     this.selectedObjectType = null;
-    this.placementGrid = 1.0; // Grid snapping size
+    this.placementGrid = 0.5; // Grid snapping size (0.5 unit grid)
     this.objects = []; // Track placed objects
 
     // Preview mesh
@@ -63,17 +77,93 @@ export class EditMode {
     // Keyboard controls
     const onKeyDown = (e) => {
       switch (e.code) {
-        case "KeyW": this.moveState.forward = true; break;
-        case "KeyS": this.moveState.backward = true; break;
-        case "KeyA": this.moveState.left = true; break;
-        case "KeyD": this.moveState.right = true; break;
-        case "Space": this.moveState.up = true; e.preventDefault(); break;
-        case "ShiftLeft": this.moveState.down = true; break;
-        case "KeyT": this.setTransformMode('translate'); break;
-        case "KeyR": this.setTransformMode('rotate'); break;
-        case "KeyE": this.setTransformMode('scale'); break;
-        case "Delete": case "Backspace": this.deleteSelectedObject(); e.preventDefault(); break;
-        case "Escape": this.deselectObject(); break;
+        // W key - dual function: camera forward OR translate mode
+        case "KeyW":
+          if (this.isMouseLookActive) {
+            // Camera movement when RMB is held
+            this.moveState.forward = true;
+          } else {
+            // Switch to translate mode when RMB is NOT held
+            this.currentToolMode = 'translate';
+            this.selectionCircle.visible = false;
+            this.transformControls.enabled = true;
+            if (this.selectedObject) {
+              this.setTransformMode('translate');
+            }
+            this.updateTransformModeUI('translate');
+          }
+          break;
+        // Movement keys only work when right mouse button is held
+        case "KeyS":
+          if (this.isMouseLookActive) this.moveState.backward = true;
+          break;
+        case "KeyA":
+          if (this.isMouseLookActive) this.moveState.left = true;
+          break;
+        case "KeyD":
+          if (this.isMouseLookActive) this.moveState.right = true;
+          break;
+        case "Space":
+          if (this.isMouseLookActive) {
+            this.moveState.up = true;
+            e.preventDefault();
+          }
+          break;
+        case "ShiftLeft":
+          if (this.isMouseLookActive) this.moveState.down = true;
+          break;
+        // Transform mode shortcuts (only work when RMB is NOT held)
+        case "KeyQ":
+          if (!this.isMouseLookActive) {
+            // Select mode
+            this.currentToolMode = 'select';
+            this.transformControls.visible = false;
+            this.transformControls.enabled = false;
+            this.selectionCircle.visible = !!this.selectedObject;
+            if (this.selectedObject) {
+              this.updateSelectionCircle();
+            }
+            this.updateTransformModeUI('select');
+          }
+          break;
+        case "KeyE":
+          if (!this.isMouseLookActive) {
+            // Rotate mode
+            this.currentToolMode = 'rotate';
+            this.selectionCircle.visible = false;
+            this.transformControls.enabled = true;
+            if (this.selectedObject) {
+              this.setTransformMode('rotate');
+            }
+            this.updateTransformModeUI('rotate');
+          }
+          break;
+        case "KeyR":
+          if (!this.isMouseLookActive) {
+            // Scale mode
+            this.currentToolMode = 'scale';
+            this.selectionCircle.visible = false;
+            this.transformControls.enabled = true;
+            if (this.selectedObject) {
+              this.setTransformMode('scale');
+            }
+            this.updateTransformModeUI('scale');
+          }
+          break;
+        case "Delete":
+        case "Backspace":
+          this.deleteSelectedObject();
+          e.preventDefault();
+          break;
+        case "Escape":
+          // Cancel object placement mode or deselect object
+          if (this.selectedObjectType) {
+            this.clearObjectSelection();
+            document.querySelectorAll('[data-type]').forEach(b => b.classList.remove('active'));
+          } else {
+            this.deselectObject();
+          }
+          break;
       }
     };
 
@@ -134,24 +224,66 @@ export class EditMode {
     });
 
     // Right mouse button for mouse look
-    this.renderer.domElement.addEventListener("mousedown", (e) => {
+    this.onMouseDown = (e) => {
       if (e.button === 2) { // Right mouse button
         this.isMouseLookActive = true;
         this.renderer.domElement.requestPointerLock();
       }
-    });
+    };
 
-    this.renderer.domElement.addEventListener("mouseup", (e) => {
+    this.onMouseUp = (e) => {
       if (e.button === 2) {
         this.isMouseLookActive = false;
         document.exitPointerLock();
+
+        // Reset all movement states when releasing RMB
+        this.moveState.forward = false;
+        this.moveState.backward = false;
+        this.moveState.left = false;
+        this.moveState.right = false;
+        this.moveState.up = false;
+        this.moveState.down = false;
       }
-    });
+    };
+
+    // Store event listeners so we can remove them later
+    this.boundMouseDown = this.onMouseDown.bind(this);
+    this.boundMouseUp = this.onMouseUp.bind(this);
 
     // Prevent context menu on right click
     this.renderer.domElement.addEventListener("contextmenu", (e) => {
       e.preventDefault();
     });
+  }
+
+  createSelectionCircle() {
+    // Create a simple circle gizmo for select mode
+    const geometry = new THREE.RingGeometry(0.4, 0.5, 32);
+    const material = new THREE.MeshBasicMaterial({
+      color: 0xffff00,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.8,
+      depthTest: false
+    });
+    const circle = new THREE.Mesh(geometry, material);
+    circle.renderOrder = 999; // Render on top
+    return circle;
+  }
+
+  updateSelectionCircle() {
+    if (!this.selectedObject || !this.selectionCircle.visible) return;
+
+    // Position circle at object's center
+    const worldPos = new THREE.Vector3();
+    this.selectedObject.getWorldPosition(worldPos);
+    this.selectionCircle.position.copy(worldPos);
+
+    // Use fixed scale for all objects (consistent size)
+    this.selectionCircle.scale.setScalar(3.0);
+
+    // Billboard effect - face camera
+    this.selectionCircle.quaternion.copy(this.camera.quaternion);
   }
 
   updateCameraRotation() {
@@ -183,10 +315,26 @@ export class EditMode {
     const transformButtons = document.querySelectorAll('[data-mode]');
     transformButtons.forEach(btn => {
       btn.addEventListener('click', () => {
-        this.setTransformMode(btn.dataset.mode);
-        // Update active state
-        transformButtons.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
+        const mode = btn.dataset.mode;
+        this.currentToolMode = mode; // Always update current tool mode
+
+        if (mode === 'select') {
+          // Select mode - show selection circle, hide and disable transform gizmos
+          this.transformControls.visible = false;
+          this.transformControls.enabled = false;
+          if (this.selectedObject) {
+            this.selectionCircle.visible = true;
+            this.updateSelectionCircle();
+          }
+        } else {
+          // Transform modes - hide selection circle, enable transform gizmos
+          this.selectionCircle.visible = false;
+          this.transformControls.enabled = true;
+          if (this.selectedObject) {
+            this.setTransformMode(mode);
+          }
+        }
+        this.updateTransformModeUI(mode);
       });
     });
 
@@ -556,6 +704,11 @@ export class EditMode {
     if (this.selectedObjectType) {
       this.updatePreview();
     }
+
+    // Update selection circle to face camera
+    if (this.selectionCircle.visible) {
+      this.updateSelectionCircle();
+    }
   }
 
   enter() {
@@ -577,6 +730,10 @@ export class EditMode {
     this.camera.rotation.order = 'YXZ';
     this.yaw = this.camera.rotation.y;
     this.pitch = this.camera.rotation.x;
+
+    // Add mouse look event listeners (only active in edit mode)
+    this.renderer.domElement.addEventListener("mousedown", this.boundMouseDown);
+    this.renderer.domElement.addEventListener("mouseup", this.boundMouseUp);
 
     // Add transform controls back to scene and enable them
     if (!this.transformControls.parent) {
@@ -608,6 +765,10 @@ export class EditMode {
     this.selectedObjectType = null;
     this.deselectObject();
     document.querySelectorAll('[data-type]').forEach(b => b.classList.remove('active'));
+
+    // Remove mouse look event listeners (so they don't interfere with play mode)
+    this.renderer.domElement.removeEventListener("mousedown", this.boundMouseDown);
+    this.renderer.domElement.removeEventListener("mouseup", this.boundMouseUp);
 
     // Disable mouse look
     this.isMouseLookActive = false;
@@ -752,10 +913,21 @@ export class EditMode {
   selectObject(obj) {
     this.selectedObject = obj;
     this.transformControls.attach(obj);
-    this.transformControls.visible = true; // Show gizmos when object is selected
 
     // Use fixed gizmo size regardless of object size
     this.transformControls.setSize(1.0);
+
+    // Apply current tool mode
+    if (this.currentToolMode === 'select') {
+      this.transformControls.visible = false;
+      this.transformControls.enabled = false; // Disable transform interaction in select mode
+      this.selectionCircle.visible = true;
+      this.updateSelectionCircle();
+    } else {
+      this.selectionCircle.visible = false;
+      this.transformControls.enabled = true; // Enable transform interaction
+      this.setTransformMode(this.currentToolMode);
+    }
 
     // Clear placement mode when selecting an object
     this.selectedObjectType = null;
@@ -770,12 +942,26 @@ export class EditMode {
     this.selectedObject = null;
     this.transformControls.detach();
     this.transformControls.visible = false; // Hide gizmos when nothing is selected
+    this.selectionCircle.visible = false; // Hide selection circle when nothing is selected
   }
 
   setTransformMode(mode) {
     if (!this.selectedObject) return;
 
     this.transformControls.setMode(mode);
+    this.transformControls.visible = true; // Ensure gizmos are visible
+  }
+
+  updateTransformModeUI(mode) {
+    // Update active state for transform mode buttons
+    const buttons = document.querySelectorAll('[data-mode]');
+    buttons.forEach(btn => {
+      if (btn.dataset.mode === mode) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
   }
 
   deleteSelectedObject() {

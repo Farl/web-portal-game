@@ -125,13 +125,13 @@ body, html {
 #render-scale-control span { min-width: 42px; text-align: right; opacity: 0.8; }
 
 #menu-toggle {
-  position: fixed; left: 12px; top: 12px; z-index: 1000;
+  position: fixed; right: 12px; top: 12px; z-index: 1000;
   background: #000; color: #fff; border: 1px solid #222;
   border-radius: 8px; padding: 8px 10px; cursor: pointer;
   pointer-events: auto;
 }
 #back-to-menu {
-  position: fixed; right: 12px; top: 12px; z-index: 1000;
+  position: fixed; left: 12px; top: 12px; z-index: 1000;
   background: #000; color: #fff; border: 1px solid #222;
   border-radius: 8px; padding: 8px 10px; cursor: pointer;
   pointer-events: auto;
@@ -213,7 +213,7 @@ body, html {
 }
 
 .menu-btn .btn-icon {
-  font-size: 32px;
+  font-size: 24px;
 }
 
 .menu-btn .btn-text {
@@ -252,13 +252,13 @@ body, html {
 .edit-toolbar {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 4px;
 }
 
 .toolbar-section {
   background: rgba(255, 255, 255, 0.05);
   border-radius: 8px;
-  padding: 15px;
+  padding: 4px;
 }
 
 .toolbar-section h3 {
@@ -315,9 +315,9 @@ body, html {
 .toolbar-checkbox {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 10px;
-  padding: 8px;
+  gap: 4px;
+  margin-top: 0px;
+  padding: 4px;
   background: rgba(255, 255, 255, 0.05);
   border-radius: 4px;
   cursor: pointer;
@@ -332,6 +332,50 @@ body, html {
   background: rgba(255, 255, 255, 0.1);
 }
 
+/* Icon buttons for transform modes */
+.icon-buttons {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.icon-btn {
+  width: 44px;
+  height: 44px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.icon-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: translateY(-2px);
+}
+
+.icon-btn:active, .icon-btn.active {
+  background: rgba(100, 150, 255, 0.4);
+  border-color: rgba(100, 150, 255, 0.6);
+}
+
+.icon-btn.danger {
+  background: rgba(255, 50, 50, 0.2);
+  border-color: rgba(255, 50, 50, 0.4);
+}
+
+.icon-btn.danger:hover {
+  background: rgba(255, 50, 50, 0.4);
+  border-color: rgba(255, 50, 50, 0.6);
+}
+
 .toolbar-btn.danger {
   background: rgba(255, 50, 50, 0.2);
   border-color: rgba(255, 50, 50, 0.4);
@@ -340,4 +384,16 @@ body, html {
 .toolbar-btn.danger:hover {
   background: rgba(255, 50, 50, 0.4);
   border-color: rgba(255, 50, 50, 0.6);
+}
+
+/* Object group styling */
+.object-group {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }

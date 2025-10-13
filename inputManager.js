@@ -33,8 +33,9 @@ export class InputManager {
   }
 
   setupInputHandlers() {
-    // Desktop portal placement
+    // Desktop portal placement - prevent context menu on right click
     this.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+
     this.canvas.addEventListener("mousedown", (e) => {
       if (!this.isMobile) this.canvas.focus();
 

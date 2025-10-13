@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Project Aperture-WebGL</title>
+  <title>Simple Portal Prototype</title>
   <script type="importmap">
   {
     "imports": {
@@ -25,17 +25,17 @@
   <div id="start-menu" class="menu-overlay">
     <div class="menu-panel">
       <h1>Project Aperture</h1>
-      <p class="subtitle">WebGL Portal Demo</p>
+      <p class="subtitle">Simple Portal Prototype</p>
       <div class="menu-buttons">
         <button id="btn-play-mode" class="menu-btn primary">
           <span class="btn-icon">🎮</span>
-          <span class="btn-text">Play Mode</span>
-          <span class="btn-desc">Test the level with portals and physics</span>
+          <span class="btn-text">Play</span>
+          <span class="btn-desc"></span>
         </button>
         <button id="btn-edit-mode" class="menu-btn desktop-only">
           <span class="btn-icon">🛠️</span>
-          <span class="btn-text">Edit Mode</span>
-          <span class="btn-desc">Create and modify level geometry</span>
+          <span class="btn-text">Editor</span>
+          <span class="btn-desc">(Early Access - No save/load yet)</span>
         </button>
       </div>
     </div>
@@ -45,36 +45,39 @@
   <div id="edit-ui" class="hidden">
     <div class="edit-toolbar">
       <div class="toolbar-section">
-        <h3>Edit Mode</h3>
-        <button id="btn-exit-edit" class="toolbar-btn">Exit to Menu</button>
+        <button id="btn-exit-edit" class="icon-btn" title="Back to Menu">◄</button>
       </div>
       <div class="toolbar-section">
         <h4>Place Objects</h4>
-        <button id="btn-place-wall" class="toolbar-btn" data-type="wall">Wall</button>
-        <button id="btn-place-platform" class="toolbar-btn" data-type="platform">Platform</button>
+        <div class="object-group">
+          <button id="btn-place-wall" class="toolbar-btn" data-type="wall">Wall</button>
+          <button id="btn-place-platform" class="toolbar-btn" data-type="platform">Platform</button>
+          <label class="toolbar-checkbox">
+            <input type="checkbox" id="portalable-checkbox" checked>
+            <span>Portalable Surface</span>
+          </label>
+        </div>
         <button id="btn-place-cube" class="toolbar-btn" data-type="cube">Cube</button>
         <button id="btn-place-goal" class="toolbar-btn" data-type="goal">Goal</button>
         <button id="btn-place-spawner" class="toolbar-btn" data-type="spawner">Player Spawner</button>
-        <label class="toolbar-checkbox">
-          <input type="checkbox" id="portalable-checkbox" checked>
-          <span>Portalable Surface</span>
-        </label>
       </div>
       <div class="toolbar-section">
-        <h4>Transform Mode</h4>
-        <button id="btn-translate" class="toolbar-btn active" data-mode="translate">Move (T)</button>
-        <button id="btn-rotate" class="toolbar-btn" data-mode="rotate">Rotate (R)</button>
-        <button id="btn-scale" class="toolbar-btn" data-mode="scale">Scale (S)</button>
-        <button id="btn-delete" class="toolbar-btn danger">Delete (Del)</button>
+        <h4>Tools</h4>
+        <div class="icon-buttons">
+          <button class="icon-btn" data-mode="select" title="Select (Q)">✋</button>
+          <button class="icon-btn active" data-mode="translate" title="Move (W)">☩</button>
+          <button class="icon-btn" data-mode="rotate" title="Rotate (E)">🔄</button>
+          <button class="icon-btn" data-mode="scale" title="Scale (R)">💗</button>
+          <button id="btn-delete" class="icon-btn danger" title="Delete (Del)">🗑️</button>
+        </div>
       </div>
       <div class="toolbar-section">
         <h4>Controls</h4>
-        <p>WASD: Move camera</p>
-        <p>Mouse: Look around</p>
-        <p>Shift: Move down</p>
-        <p>Space: Move up</p>
-        <p>Click: Place/Select object</p>
-        <p>ESC: Deselect</p>
+        <p>RMB + WASD: Move camera</p>
+        <p>RMB + Mouse: Look around</p>
+        <p>RMB + Space/Shift: Up/Down</p>
+        <p>Q/W/E/R: Select/Move/Rotate/Scale</p>
+        <p>ESC: Cancel/Deselect</p>
       </div>
     </div>
   </div>
@@ -109,8 +112,8 @@
       <input id="render-scale" type="range" min="0.25" max="1" step="0.05" value="1">
       <span id="render-scale-label">100%</span>
     </div>
+    <button id="back-to-menu" style="display: none;" aria-label="Back to menu">◄</button>
     <button id="menu-toggle" aria-label="Toggle settings">☰</button>
-    <button id="back-to-menu" style="display: none;" aria-label="Back to menu">🏠</button>
   </div>
   <div id="debug-ui" style="display: none;">
     <h3>Stencil Test</h3>
