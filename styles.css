@@ -106,6 +106,15 @@ body, html {
     width: 56px; height: 56px; border-radius: 50%;
     font-size: 24px; line-height: 1; display: grid; place-items: center;
     border: 1px solid #222;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  #mobile-buttons button:active {
+    transform: scale(0.95);
+    opacity: 0.8;
   }
   #btn-blue { background: #2a7fff; color: #fff; }
   #btn-orange { background: #ff7a00; color: #fff; }

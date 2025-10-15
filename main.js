@@ -337,8 +337,10 @@ class PortalGame {
     // Portal placement callbacks
     this.inputManager.setPlaceBluePortalCallback((e) => {
       e.preventDefault();
-      // Only place portal if pointer is already locked
-      if (!this.fps.enabled || !this.fps.controls.isLocked) return;
+      // On mobile, FPS is always enabled but pointer lock doesn't exist
+      // On desktop, only place portal if pointer is locked
+      if (!this.fps.enabled) return;
+      if (!this.inputManager.isMobile && !this.fps.controls.isLocked) return;
 
       // Set raycaster from center of screen (crosshair)
       const raycaster = this.inputManager.getRaycaster();
@@ -354,8 +356,10 @@ class PortalGame {
 
     this.inputManager.setPlaceOrangePortalCallback((e) => {
       e.preventDefault();
-      // Only place portal if pointer is already locked
-      if (!this.fps.enabled || !this.fps.controls.isLocked) return;
+      // On mobile, FPS is always enabled but pointer lock doesn't exist
+      // On desktop, only place portal if pointer is locked
+      if (!this.fps.enabled) return;
+      if (!this.inputManager.isMobile && !this.fps.controls.isLocked) return;
 
       // Set raycaster from center of screen (crosshair)
       const raycaster = this.inputManager.getRaycaster();

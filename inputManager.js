@@ -110,28 +110,42 @@ export class InputManager {
 
     // Mobile buttons
     const btnGrab = document.getElementById('btn-grab');
-    btnGrab.addEventListener('pointerdown', () => {
+    const btnBlue = document.getElementById('btn-blue');
+    const btnOrange = document.getElementById('btn-orange');
+
+    // Prevent context menu on long press for all mobile buttons
+    [btnGrab, btnBlue, btnOrange].forEach(btn => {
+      btn.addEventListener('contextmenu', (e) => e.preventDefault());
+    });
+
+    // Grab button uses pointerdown/pointerup for charging mechanic
+    btnGrab.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
       if (this.onStartCharge) {
         this.onStartCharge();
       }
     });
-    btnGrab.addEventListener('pointerup', () => {
+    btnGrab.addEventListener('pointerup', (e) => {
+      e.preventDefault();
       if (this.onReleaseThrow) {
         this.onReleaseThrow();
       }
     });
 
-    document.getElementById('btn-blue').addEventListener('click', () => {
+    // Portal buttons use touchstart with {passive: false} for immediate response
+    btnBlue.addEventListener('touchstart', (e) => {
+      e.preventDefault();
       if (this.onPlaceBluePortal) {
         this.onPlaceBluePortal({ preventDefault() {} });
       }
-    });
+    }, { passive: false });
 
-    document.getElementById('btn-orange').addEventListener('click', () => {
+    btnOrange.addEventListener('touchstart', (e) => {
+      e.preventDefault();
       if (this.onPlaceOrangePortal) {
         this.onPlaceOrangePortal({ preventDefault() {} });
       }
-    });
+    }, { passive: false });
   }
 
   /**
