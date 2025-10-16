@@ -80,7 +80,7 @@ export class PortalRenderer {
   configureMask(mask, color, stencilRef) {
     mask.material.color.set(color);
     mask.material.side = THREE.DoubleSide;
-    mask.material.depthWrite = false;
+    mask.material.depthWrite = true; // Write portal surface depth so transparent objects can occlude portal views
     mask.material.depthTest = true;
     mask.material.stencilWrite = true;
     mask.material.stencilFunc = THREE.AlwaysStencilFunc;
@@ -95,7 +95,6 @@ export class PortalRenderer {
   renderPortalMask(mask, color, stencilRef) {
     this.configureMask(mask, color, stencilRef);
     mask.visible = true;
-    this.renderer.autoClear = false;
     this.renderer.render(this.maskScene, this.camera);
     mask.visible = false;
   }
@@ -107,12 +106,13 @@ export class PortalRenderer {
     // Calculate virtual camera
     portal.updateVirtualCamera(this.camera, null);
 
+    // Ensure virtual camera can see all layers (including transparent objects on Layer 1)
+    portal.virtualCam.layers.enableAll();
+
     // Hide/show portals
     if (portalsVisible) {
       // Show portals in the view
     }
-
-    this.renderer.autoClear = false;
 
     // Temporarily disable scene background (background doesn't respect stencil)
     const originalBackground = this.scene.background;
@@ -147,7 +147,11 @@ export class PortalRenderer {
     this.portalBorderScene.add(bluePortal);
     this.portalBorderScene.add(orangePortal);
 
-    this.renderer.autoClear = false;
+    // Force update world matrices to prevent position lag during camera movement
+    // This ensures portal borders align perfectly with portal views
+    bluePortal.updateMatrixWorld(true);
+    orangePortal.updateMatrixWorld(true);
+
     this.renderer.render(this.portalBorderScene, this.camera);
 
     // Remove from border scene first
@@ -157,58 +161,158 @@ export class PortalRenderer {
     // Return portals to original parent
     if (blueParent) blueParent.add(bluePortal);
     if (orangeParent) orangeParent.add(orangePortal);
+  }
 
-    this.renderer.autoClear = true;
+  /**
+   * Override depth in portal area with portal surface depth
+   * This ensures transparent objects can correctly occlude portal views
+   */
+  renderPortalDepthOverride(mask) {
+    // Disable color writes, only write depth
+    const gl = this.renderer.getContext();
+    gl.colorMask(false, false, false, false);
+
+    // Save original material settings
+    const originalDepthFunc = mask.material.depthFunc;
+    const originalDepthWrite = mask.material.depthWrite;
+    const originalStencilWrite = mask.material.stencilWrite;
+
+    mask.material.depthWrite = true;
+    mask.material.depthTest = true;
+    mask.material.depthFunc = THREE.AlwaysDepth; // Always write depth
+    mask.material.stencilWrite = false; // Don't modify stencil
+    mask.material.needsUpdate = true;
+
+    mask.visible = true;
+    this.renderer.render(this.maskScene, this.camera);
+    mask.visible = false;
+
+    // Restore material settings
+    mask.material.depthFunc = originalDepthFunc;
+    mask.material.depthWrite = originalDepthWrite;
+    mask.material.stencilWrite = originalStencilWrite;
+    mask.material.needsUpdate = true;
+
+    // Re-enable color writes
+    gl.colorMask(true, true, true, true);
   }
 
   /**
    * Complete portal rendering pipeline
    */
   renderPortals(bluePortal, orangePortal, blueMask, orangeMask, debugSteps, fpsObject) {
-    // Step 0: Render main scene
-    if (debugSteps.step0) {
-      this.scene.background.set(CONFIG.renderer.backgroundColor);
-      this.renderer.autoClear = true;
-      this.renderer.clear(true, true, true);
+    // CRITICAL: scene.background overrides autoClear settings and forces clearing!
+    // We must set it to null and use setClearColor instead
+    this.scene.background = null;
+    this.renderer.setClearColor(CONFIG.renderer.backgroundColor);
 
+    // Disable autoClear to prevent automatic clearing
+    // We manually control all clear operations
+    this.renderer.autoClear = false;
+
+    // Manually clear all buffers at the start
+    this.renderer.clear(true, true, true);
+
+    // Force update world matrices for all portals BEFORE any rendering
+    // This ensures syncMaskTransform gets the latest transforms
+    this.scene.updateMatrixWorld(true);
+
+    // Helper function to render a portal (mask + view + depth override)
+    const renderPortal = (portal, otherPortal, mask, color, stencilRef, stepMaskEnabled, stepViewEnabled) => {
+      // Draw portal mask to stencil buffer
+      if (stepMaskEnabled) {
+        this.syncMaskTransform(portal, mask);
+        this.renderPortalMask(mask, color, stencilRef);
+      }
+
+      // Render portal view where stencil=stencilRef
+      if (stepViewEnabled) {
+        // When rendering blue portal view, we're looking FROM orange TO blue
+        // So hide orange portal (exit point), show blue portal (entry point)
+        // Vice versa for orange portal view
+        otherPortal.visible = false;
+        portal.visible = true;
+        this.renderPortalView(portal, stencilRef, true);
+
+        // Override portal area depth with portal surface depth
+        if (stepMaskEnabled) {
+          this.renderPortalDepthOverride(mask);
+        }
+      }
+    };
+
+    // Step 0-1: Blue portal (looking FROM orange TO blue)
+    renderPortal(bluePortal, orangePortal, blueMask, CONFIG.portal.blueColor, 1, debugSteps.step0, debugSteps.step1);
+
+    // Step 2-3: Orange portal (looking FROM blue TO orange)
+    renderPortal(orangePortal, bluePortal, orangeMask, CONFIG.portal.orangeColor, 2, debugSteps.step2, debugSteps.step3);
+
+    // Step 4: Render main scene (after portals, so it can occlude them)
+    if (debugSteps.step4) {
       bluePortal.visible = false;
       orangePortal.visible = false;
 
+      // Hide Layer 1 (transparent objects) for main scene render
+      this.camera.layers.disable(1);
+
       this.renderer.render(this.scene, this.camera);
-    } else {
-      this.scene.background.set(0xff0000);
-      this.renderer.clear(true, true, true);
+
+      // Restore Layer 1 for portal views
+      this.camera.layers.enable(1);
     }
 
-    // Step 1a: Draw blue portal mask to stencil buffer
-    if (debugSteps.step1a) {
-      this.syncMaskTransform(bluePortal, blueMask);
-      this.renderer.clear(false, false, true); // Clear only stencil
-      this.renderPortalMask(blueMask, CONFIG.portal.blueColor, 1);
-    }
+    // Step 5: Render portal borders on top
+    if (debugSteps.step5) {
+      // Restore correct depth in portal areas before rendering borders
+      // This ensures borders are occluded by scene objects (e.g., cubes in front of portals)
+      const gl = this.renderer.getContext();
 
-    // Step 1b: Render blue portal view where stencil=1
-    if (debugSteps.step1b) {
-      bluePortal.visible = true;
-      orangePortal.visible = true;
-      this.renderPortalView(bluePortal, 1, true);
-    }
+      gl.enable(gl.STENCIL_TEST);
+      gl.stencilFunc(gl.NOTEQUAL, 0, 0xFF); // All portal areas (stencil != 0)
+      gl.stencilOp(gl.KEEP, gl.KEEP, gl.KEEP);
+      gl.depthFunc(gl.LESS); // Only overwrite if scene object is closer
+      gl.colorMask(false, false, false, false); // Only write depth, not color
 
-    // Step 2: Render orange portal (mask + view)
-    if (debugSteps.step2) {
-      // 2a: Draw orange portal mask
-      this.syncMaskTransform(orangePortal, orangeMask);
-      this.renderPortalMask(orangeMask, CONFIG.portal.orangeColor, 2);
+      bluePortal.visible = false;
+      orangePortal.visible = false;
+      this.camera.layers.disable(1);
+      this.renderer.render(this.scene, this.camera);
+      this.camera.layers.enable(1);
 
-      // 2b: Render orange portal view where stencil=2
-      bluePortal.visible = true;
-      orangePortal.visible = true;
-      this.renderPortalView(orangePortal, 2, true);
-    }
+      gl.colorMask(true, true, true, true);
+      gl.disable(gl.STENCIL_TEST);
 
-    // Step 3: Render portal borders on top
-    if (debugSteps.step3) {
+      // Render borders with normal depth test
       this.renderPortalBorders(bluePortal, orangePortal);
+    }
+
+    // Step 6: Render transparent objects (Layer 1) after portal borders
+    if (debugSteps.step4 && debugSteps.step6) {
+      // Count transparent objects on Layer 1
+      let count = 0;
+      const layer1 = new THREE.Layers();
+      layer1.set(1);
+      this.scene.traverse((obj) => {
+        if (obj.isMesh && obj.layers.test(layer1)) {
+          count++;
+        }
+      });
+
+      if (count > 0) {
+        bluePortal.visible = false;
+        orangePortal.visible = false;
+
+        // Clear stencil buffer so transparent objects aren't affected by portal masks
+        this.renderer.clear(false, false, true); // Clear only stencil buffer
+
+        // Hide Layer 0, show only Layer 1 (transparent objects)
+        this.camera.layers.disable(0);
+
+        this.renderer.render(this.scene, this.camera);
+
+        // Restore Layer 0
+        this.camera.layers.enable(0);
+      }
     }
   }
 
@@ -222,7 +326,11 @@ export class PortalRenderer {
     }
 
     // Clear screen
-    this.scene.background.set(0x000000);
+    if (!this.scene.background) {
+      this.scene.background = new THREE.Color(0x000000);
+    } else {
+      this.scene.background.set(0x000000);
+    }
     this.renderer.autoClear = true;
     this.renderer.clear(true, true, true);
 

@@ -36,10 +36,12 @@ export class DebugUI {
     this.setupCheckbox('stepA', 'stepA');
     this.setupCheckbox('stepB', 'stepB');
     this.setupCheckbox('step0', 'step0');
-    this.setupCheckbox('step1a', 'step1a');
-    this.setupCheckbox('step1b', 'step1b');
+    this.setupCheckbox('step1', 'step1');
     this.setupCheckbox('step2', 'step2');
     this.setupCheckbox('step3', 'step3');
+    this.setupCheckbox('step4', 'step4');
+    this.setupCheckbox('step5', 'step5');
+    this.setupCheckbox('step6', 'step6');
 
     // ESC key handler
     document.addEventListener('keydown', (e) => {

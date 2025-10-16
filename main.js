@@ -674,6 +674,9 @@ class PortalGame {
     const dt = Math.min((t - this.lastT) / 1000, CONFIG.animation.maxDeltaTime);
     this.lastT = t;
 
+    // Sort transparent objects by distance from camera
+    this.sortTransparentObjects();
+
     if (this.mode === 'play') {
       // Play mode: update physics and game logic
       this.updatePhysics(dt);
@@ -692,6 +695,33 @@ class PortalGame {
     }
 
     requestAnimationFrame((t) => this.animate(t));
+  }
+
+  /**
+   * Sort transparent objects by distance from camera (back-to-front)
+   */
+  sortTransparentObjects() {
+    const transparentObjects = [];
+    this.sceneManager.scene.traverse((obj) => {
+      if (obj.userData.transparent && obj.isMesh) {
+        transparentObjects.push(obj);
+      }
+    });
+
+    if (transparentObjects.length === 0) return;
+
+    // Sort by distance from camera (far to near for proper alpha blending)
+    const cameraPos = this.sceneManager.camera.position;
+    transparentObjects.sort((a, b) => {
+      const distA = a.position.distanceToSquared(cameraPos);
+      const distB = b.position.distanceToSquared(cameraPos);
+      return distB - distA; // Render farthest first
+    });
+
+    // Update renderOrder based on distance
+    transparentObjects.forEach((obj, index) => {
+      obj.renderOrder = 1000 + index;
+    });
   }
 }
 

@@ -35,6 +35,10 @@ export class SceneManager {
     );
     this.camera.position.set(startPosition.x, startPosition.y, startPosition.z);
     this.camera.rotation.order = rotationOrder;
+
+    // Enable all layers for the camera (by default only Layer 0 is enabled)
+    this.camera.layers.enableAll();
+
     this.scene.add(this.camera);
 
     // Setup lighting
@@ -56,6 +60,7 @@ export class SceneManager {
       hemisphere.groundColor,
       hemisphere.intensity
     );
+    hemi.layers.enableAll(); // Enable lights on all layers
     this.scene.add(hemi);
 
     // Directional light
@@ -71,6 +76,7 @@ export class SceneManager {
     dir.castShadow = true;
     dir.shadow.camera.near = directional.shadowCameraNear;
     dir.shadow.camera.far = directional.shadowCameraFar;
+    dir.layers.enableAll(); // Enable lights on all layers
     this.scene.add(dir);
   }
 

@@ -105,6 +105,7 @@ export class EditMode {
     // Preview mesh
     this.previewMesh = null;
     this.raycaster = new THREE.Raycaster();
+    this.raycaster.layers.enableAll(); // Enable raycasting on all layers
     this.mouse = new THREE.Vector2(0, 0);
 
     // References to default level objects
@@ -628,16 +629,22 @@ export class EditMode {
       opacity: 0.3,
       roughness: 0.1,
       metalness: 0.1,
-      side: THREE.DoubleSide
+      side: THREE.DoubleSide,
+      depthWrite: false // Don't write depth for proper transparency
     });
 
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.copy(position);
     mesh.castShadow = false; // Glass doesn't cast shadow
     mesh.receiveShadow = true;
+
+    // Put transparent objects on Layer 1
+    mesh.layers.set(1);
+
     mesh.userData.portalable = false; // Glass is never portalable
     mesh.userData.glass = true; // Mark as glass for collision
     mesh.userData.editorPlaced = true;
+    mesh.userData.transparent = true; // Mark for distance sorting
     return mesh;
   }
 
