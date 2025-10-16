@@ -23,12 +23,55 @@ export class EditMode {
     this.isDraggingTransform = false;
     this.transformControls.addEventListener('dragging-changed', (event) => {
       this.isDraggingTransform = event.value;
+
+      // When dragging ends, force snap the final values
+      if (!event.value && this.selectedObject) {
+        if (this.currentToolMode === 'rotate') {
+          // Force snap rotation to nearest 90 degrees on each axis
+          const euler = this.selectedObject.rotation;
+          euler.x = Math.round(euler.x / (Math.PI / 2)) * (Math.PI / 2);
+          euler.y = Math.round(euler.y / (Math.PI / 2)) * (Math.PI / 2);
+          euler.z = Math.round(euler.z / (Math.PI / 2)) * (Math.PI / 2);
+        } else if (this.currentToolMode === 'scale') {
+          // Force snap scale to 0.2 increments on all axes (1 unit increments for 5-unit objects)
+          // Also prevent negative scale
+          const scale = this.selectedObject.scale;
+          scale.x = Math.max(0.2, Math.round(scale.x / 0.2) * 0.2);
+          scale.y = Math.max(0.2, Math.round(scale.y / 0.2) * 0.2);
+          scale.z = Math.max(0.2, Math.round(scale.z / 0.2) * 0.2);
+        }
+      }
     });
 
     // Set snapping for transform controls
     this.transformControls.setTranslationSnap(0.5); // 0.5 unit grid for translation
     this.transformControls.setRotationSnap(THREE.MathUtils.degToRad(90)); // 90 degrees for rotation
-    this.transformControls.setScaleSnap(0.1); // 0.1 scale snap (0.5 unit increments for 5-unit objects)
+    this.transformControls.setScaleSnap(0.2); // 0.2 scale snap (1 unit increments for 5-unit objects)
+
+    // Enable snapping mode (required for scale snapping to work)
+    this.transformControls.translationSnap = 0.5;
+    this.transformControls.rotationSnap = THREE.MathUtils.degToRad(90);
+    this.transformControls.scaleSnap = 0.2;
+
+    // Force axis-aligned rotation and scale snapping
+    this.transformControls.addEventListener('objectChange', () => {
+      if (!this.selectedObject) return;
+
+      if (this.currentToolMode === 'rotate') {
+        // Force snap rotation to nearest 90 degrees on each axis
+        const euler = this.selectedObject.rotation;
+        euler.x = Math.round(euler.x / (Math.PI / 2)) * (Math.PI / 2);
+        euler.y = Math.round(euler.y / (Math.PI / 2)) * (Math.PI / 2);
+        euler.z = Math.round(euler.z / (Math.PI / 2)) * (Math.PI / 2);
+      } else if (this.currentToolMode === 'scale') {
+        // Force snap scale to 0.2 increments on all axes (1 unit increments for 5-unit objects)
+        // Also prevent negative scale
+        const scale = this.selectedObject.scale;
+        scale.x = Math.max(0.2, Math.round(scale.x / 0.2) * 0.2);
+        scale.y = Math.max(0.2, Math.round(scale.y / 0.2) * 0.2);
+        scale.z = Math.max(0.2, Math.round(scale.z / 0.2) * 0.2);
+      }
+    });
 
     this.transformControls.visible = false; // Hidden by default
     this.transformControls.enabled = false; // Disabled by default
@@ -279,8 +322,8 @@ export class EditMode {
     this.selectedObject.getWorldPosition(worldPos);
     this.selectionCircle.position.copy(worldPos);
 
-    // Use fixed scale for all objects (consistent size)
-    this.selectionCircle.scale.setScalar(3.0);
+    // Use fixed scale for all objects (1/15 of previous size = 3.0/15 = 0.2)
+    this.selectionCircle.scale.setScalar(3.0 / 15);
 
     // Billboard effect - face camera
     this.selectionCircle.quaternion.copy(this.camera.quaternion);
@@ -382,6 +425,15 @@ export class EditMode {
           wireframe: false
         });
         break;
+      case 'glass-wall':
+        geometry = new THREE.BoxGeometry(5, 5, 0.2);
+        material = new THREE.MeshStandardMaterial({
+          color: 0x88ccff,
+          transparent: true,
+          opacity: 0.3,
+          wireframe: false
+        });
+        break;
       case 'platform':
         // Use second floor dimensions: halfRoomScale x wallThickness x halfRoomScale
         geometry = new THREE.BoxGeometry(5, 0.2, 5);
@@ -456,6 +508,9 @@ export class EditMode {
     switch (this.selectedObjectType) {
       case 'wall':
         mesh = this.createWall(position);
+        break;
+      case 'glass-wall':
+        mesh = this.createGlassWall(position);
         break;
       case 'platform':
         mesh = this.createPlatform(position);
@@ -560,6 +615,28 @@ export class EditMode {
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     mesh.userData.portalable = isPortalable;
+    mesh.userData.editorPlaced = true;
+    return mesh;
+  }
+
+  createGlassWall(position) {
+    // Glass wall - always non-portalable, transparent
+    const geometry = new THREE.BoxGeometry(5, 5, 0.2);
+    const material = new THREE.MeshStandardMaterial({
+      color: 0x88ccff,
+      transparent: true,
+      opacity: 0.3,
+      roughness: 0.1,
+      metalness: 0.1,
+      side: THREE.DoubleSide
+    });
+
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.copy(position);
+    mesh.castShadow = false; // Glass doesn't cast shadow
+    mesh.receiveShadow = true;
+    mesh.userData.portalable = false; // Glass is never portalable
+    mesh.userData.glass = true; // Mark as glass for collision
     mesh.userData.editorPlaced = true;
     return mesh;
   }

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
@@ -16,8 +17,10 @@
     }
   }
   </script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.6.0/css/all.min.css" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
+
 <body>
   <canvas id="webgl" tabindex="0"></canvas>
 
@@ -57,6 +60,7 @@
             <span>Portalable Surface</span>
           </label>
         </div>
+        <button id="btn-place-glass-wall" class="toolbar-btn" data-type="glass-wall">Glass Wall</button>
         <button id="btn-place-cube" class="toolbar-btn" data-type="cube">Cube</button>
         <button id="btn-place-goal" class="toolbar-btn" data-type="goal">Goal</button>
         <button id="btn-place-spawner" class="toolbar-btn" data-type="spawner">Player Spawner</button>
@@ -64,11 +68,15 @@
       <div class="toolbar-section">
         <h4>Tools</h4>
         <div class="icon-buttons">
-          <button class="icon-btn" data-mode="select" title="Select (Q)">✋</button>
-          <button class="icon-btn active" data-mode="translate" title="Move (W)">☩</button>
-          <button class="icon-btn" data-mode="rotate" title="Rotate (E)">🔄</button>
-          <button class="icon-btn" data-mode="scale" title="Scale (R)">💗</button>
-          <button id="btn-delete" class="icon-btn danger" title="Delete (Del)">🗑️</button>
+          <button class="icon-btn" data-mode="select" title="Select (Q)"><i
+              class="fa-solid fa-hand-pointer"></i></button>
+          <button class="icon-btn active" data-mode="translate" title="Move (W)"><i
+              class="fa-solid fa-up-down-left-right"></i></button>
+          <button class="icon-btn" data-mode="rotate" title="Rotate (E)"><i class="fa-solid fa-rotate"></i></button>
+          <button class="icon-btn" data-mode="scale" title="Scale (R)"><i
+              class="fa-solid fa-up-right-and-down-left-from-center"></i></button>
+          <button id="btn-delete" class="icon-btn danger" title="Delete (Del)"><i
+              class="fa-solid fa-trash"></i></button>
         </div>
       </div>
       <div class="toolbar-section">
@@ -129,4 +137,5 @@
   </div>
   <script type="module" src="./main.js"></script>
 </body>
+
 </html>

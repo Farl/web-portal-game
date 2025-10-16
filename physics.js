@@ -71,6 +71,9 @@ export class PhysicsCube extends THREE.Mesh {
     this.position.addScaledVector(this.velocity, dt);
     const next = this.position.clone();
 
+    // Calculate actual size based on scale (use the largest scale component for collision)
+    const actualSize = this.size * Math.max(this.scale.x, this.scale.y, this.scale.z);
+
     // Portal traversal: swept-sphere against portal plane, then aperture check
     for (const p of portals) {
       if (!p.isPlaced || !p.linked?.isPlaced) continue;
@@ -82,7 +85,7 @@ export class PhysicsCube extends THREE.Mesh {
       const center = p.getWorldPosition(new THREE.Vector3());
       const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(n, center);
       const d0 = plane.distanceToPoint(prev), d1 = plane.distanceToPoint(next);
-      const half = this.size * 0.5;
+      const half = actualSize * 0.5;
 
       const crossesFront = (d0 >  half && d1 <=  half);
       const crossesBack  = (d0 < -half && d1 >= -half);
@@ -114,7 +117,7 @@ export class PhysicsCube extends THREE.Mesh {
 
     // Axis-aligned bounds (simple chamber)
     const min = chamberBounds.min, max = chamberBounds.max;
-    const half = this.size / 2;
+    const half = actualSize / 2;
 
     if (this.position.x - half < min.x) { this.position.x = min.x + half; this.velocity.x *= -0.4; }
     if (this.position.x + half > max.x) { this.position.x = max.x - half; this.velocity.x *= -0.4; }
@@ -135,7 +138,7 @@ export class PhysicsCube extends THREE.Mesh {
     let onTopSurface = false;
     for (const obj of obstacles) {
       const box = new THREE.Box3().setFromObject(obj);
-      const expanded = box.clone().expandByScalar(half);
+      const expanded = box.clone().expandByScalar(actualSize / 2);
       if (expanded.containsPoint(this.position)) {
         const dMin = expanded.max.clone().sub(this.position);
         const dMax = this.position.clone().sub(expanded.min);
