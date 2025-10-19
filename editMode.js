@@ -25,52 +25,29 @@ export class EditMode {
       this.isDraggingTransform = event.value;
 
       // When dragging ends, force snap the final values
-      if (!event.value && this.selectedObject) {
-        if (this.currentToolMode === 'rotate') {
-          // Force snap rotation to nearest 90 degrees on each axis
-          const euler = this.selectedObject.rotation;
-          euler.x = Math.round(euler.x / (Math.PI / 2)) * (Math.PI / 2);
-          euler.y = Math.round(euler.y / (Math.PI / 2)) * (Math.PI / 2);
-          euler.z = Math.round(euler.z / (Math.PI / 2)) * (Math.PI / 2);
-        } else if (this.currentToolMode === 'scale') {
-          // Force snap scale to 0.2 increments on all axes (1 unit increments for 5-unit objects)
-          // Also prevent negative scale
-          const scale = this.selectedObject.scale;
-          scale.x = Math.max(0.2, Math.round(scale.x / 0.2) * 0.2);
-          scale.y = Math.max(0.2, Math.round(scale.y / 0.2) * 0.2);
-          scale.z = Math.max(0.2, Math.round(scale.z / 0.2) * 0.2);
-        }
+      if (!event.value) {
+        this.snapTransform();
       }
     });
 
+    // Snapping constants
+    this.TRANSLATION_SNAP = 0.5;
+    this.ROTATION_SNAP = Math.PI / 2; // 90 degrees
+    this.SCALE_SNAP = 0.2;
+
     // Set snapping for transform controls
-    this.transformControls.setTranslationSnap(0.5); // 0.5 unit grid for translation
-    this.transformControls.setRotationSnap(THREE.MathUtils.degToRad(90)); // 90 degrees for rotation
-    this.transformControls.setScaleSnap(0.2); // 0.2 scale snap (1 unit increments for 5-unit objects)
+    this.transformControls.setTranslationSnap(this.TRANSLATION_SNAP);
+    this.transformControls.setRotationSnap(this.ROTATION_SNAP);
+    this.transformControls.setScaleSnap(this.SCALE_SNAP);
 
     // Enable snapping mode (required for scale snapping to work)
-    this.transformControls.translationSnap = 0.5;
-    this.transformControls.rotationSnap = THREE.MathUtils.degToRad(90);
-    this.transformControls.scaleSnap = 0.2;
+    this.transformControls.translationSnap = this.TRANSLATION_SNAP;
+    this.transformControls.rotationSnap = this.ROTATION_SNAP;
+    this.transformControls.scaleSnap = this.SCALE_SNAP;
 
     // Force axis-aligned rotation and scale snapping
     this.transformControls.addEventListener('objectChange', () => {
-      if (!this.selectedObject) return;
-
-      if (this.currentToolMode === 'rotate') {
-        // Force snap rotation to nearest 90 degrees on each axis
-        const euler = this.selectedObject.rotation;
-        euler.x = Math.round(euler.x / (Math.PI / 2)) * (Math.PI / 2);
-        euler.y = Math.round(euler.y / (Math.PI / 2)) * (Math.PI / 2);
-        euler.z = Math.round(euler.z / (Math.PI / 2)) * (Math.PI / 2);
-      } else if (this.currentToolMode === 'scale') {
-        // Force snap scale to 0.2 increments on all axes (1 unit increments for 5-unit objects)
-        // Also prevent negative scale
-        const scale = this.selectedObject.scale;
-        scale.x = Math.max(0.2, Math.round(scale.x / 0.2) * 0.2);
-        scale.y = Math.max(0.2, Math.round(scale.y / 0.2) * 0.2);
-        scale.z = Math.max(0.2, Math.round(scale.z / 0.2) * 0.2);
-      }
+      this.snapTransform();
     });
 
     this.transformControls.visible = false; // Hidden by default
@@ -128,13 +105,7 @@ export class EditMode {
             this.moveState.forward = true;
           } else {
             // Switch to translate mode when RMB is NOT held
-            this.currentToolMode = 'translate';
-            this.selectionCircle.visible = false;
-            this.transformControls.enabled = true;
-            if (this.selectedObject) {
-              this.setTransformMode('translate');
-            }
-            this.updateTransformModeUI('translate');
+            this.switchToolMode('translate');
           }
           break;
         // Movement keys only work when right mouse button is held
@@ -159,39 +130,17 @@ export class EditMode {
         // Transform mode shortcuts (only work when RMB is NOT held)
         case "KeyQ":
           if (!this.isMouseLookActive) {
-            // Select mode
-            this.currentToolMode = 'select';
-            this.transformControls.visible = false;
-            this.transformControls.enabled = false;
-            this.selectionCircle.visible = !!this.selectedObject;
-            if (this.selectedObject) {
-              this.updateSelectionCircle();
-            }
-            this.updateTransformModeUI('select');
+            this.switchToolMode('select');
           }
           break;
         case "KeyE":
           if (!this.isMouseLookActive) {
-            // Rotate mode
-            this.currentToolMode = 'rotate';
-            this.selectionCircle.visible = false;
-            this.transformControls.enabled = true;
-            if (this.selectedObject) {
-              this.setTransformMode('rotate');
-            }
-            this.updateTransformModeUI('rotate');
+            this.switchToolMode('rotate');
           }
           break;
         case "KeyR":
           if (!this.isMouseLookActive) {
-            // Scale mode
-            this.currentToolMode = 'scale';
-            this.selectionCircle.visible = false;
-            this.transformControls.enabled = true;
-            if (this.selectedObject) {
-              this.setTransformMode('scale');
-            }
-            this.updateTransformModeUI('scale');
+            this.switchToolMode('scale');
           }
           break;
         case "Delete":
@@ -203,7 +152,6 @@ export class EditMode {
           // Cancel object placement mode or deselect object
           if (this.selectedObjectType) {
             this.clearObjectSelection();
-            document.querySelectorAll('[data-type]').forEach(b => b.classList.remove('active'));
           } else {
             this.deselectObject();
           }
@@ -362,6 +310,12 @@ export class EditMode {
         const mode = btn.dataset.mode;
         this.currentToolMode = mode; // Always update current tool mode
 
+        // Cancel placement mode if active
+        if (this.selectedObjectType) {
+          this.clearObjectSelection();
+          buttons.forEach(b => b.classList.remove('active'));
+        }
+
         if (mode === 'select') {
           // Select mode - show selection circle, hide and disable transform gizmos
           this.transformControls.visible = false;
@@ -404,6 +358,96 @@ export class EditMode {
       this.scene.remove(this.previewMesh);
       this.previewMesh = null;
     }
+    // Also clear UI active states
+    document.querySelectorAll('[data-type]').forEach(b => b.classList.remove('active'));
+  }
+
+  /**
+   * Snap transform controls based on current tool mode
+   */
+  snapTransform() {
+    if (!this.selectedObject) return;
+
+    if (this.currentToolMode === 'rotate') {
+      // Force snap rotation to nearest 90 degrees on each axis
+      const euler = this.selectedObject.rotation;
+      euler.x = Math.round(euler.x / this.ROTATION_SNAP) * this.ROTATION_SNAP;
+      euler.y = Math.round(euler.y / this.ROTATION_SNAP) * this.ROTATION_SNAP;
+      euler.z = Math.round(euler.z / this.ROTATION_SNAP) * this.ROTATION_SNAP;
+    } else if (this.currentToolMode === 'scale') {
+      // Force snap scale to increments on all axes, prevent negative scale
+      const scale = this.selectedObject.scale;
+      scale.x = Math.max(this.SCALE_SNAP, Math.round(scale.x / this.SCALE_SNAP) * this.SCALE_SNAP);
+      scale.y = Math.max(this.SCALE_SNAP, Math.round(scale.y / this.SCALE_SNAP) * this.SCALE_SNAP);
+      scale.z = Math.max(this.SCALE_SNAP, Math.round(scale.z / this.SCALE_SNAP) * this.SCALE_SNAP);
+    }
+  }
+
+  /**
+   * Check if the given object can be scaled
+   */
+  canObjectBeScaled(obj) {
+    if (!obj) return true; // No object selected, scale is generally available
+
+    // Player spawner, doors, and cubes cannot be scaled
+    return !(obj.userData.spawner || obj.userData.door || obj.userData.dynamic);
+  }
+
+  /**
+   * Update UI to show which tools are available for current selection
+   */
+  updateAvailableTools() {
+    const scaleButton = document.querySelector('[data-mode="scale"]');
+    if (!scaleButton) return;
+
+    const canScale = this.canObjectBeScaled(this.selectedObject);
+
+    if (canScale) {
+      scaleButton.classList.remove('disabled');
+      scaleButton.style.opacity = '1';
+      scaleButton.style.cursor = 'pointer';
+    } else {
+      scaleButton.classList.add('disabled');
+      scaleButton.style.opacity = '0.3';
+      scaleButton.style.cursor = 'not-allowed';
+    }
+  }
+
+  /**
+   * Switch to a tool mode (translate/rotate/scale/select)
+   */
+  switchToolMode(mode) {
+    // Cancel placement mode if active
+    if (this.selectedObjectType) {
+      this.clearObjectSelection();
+    }
+
+    // Prevent switching to scale mode if current object can't be scaled
+    if (mode === 'scale' && !this.canObjectBeScaled(this.selectedObject)) {
+      console.warn('Selected object cannot be scaled');
+      return;
+    }
+
+    this.currentToolMode = mode;
+
+    if (mode === 'select') {
+      // Select mode: show selection circle, hide transform gizmos
+      this.transformControls.visible = false;
+      this.transformControls.enabled = false;
+      this.selectionCircle.visible = !!this.selectedObject;
+      if (this.selectedObject) {
+        this.updateSelectionCircle();
+      }
+    } else {
+      // Transform modes: hide selection circle, show transform gizmos
+      this.selectionCircle.visible = false;
+      this.transformControls.enabled = true;
+      if (this.selectedObject) {
+        this.setTransformMode(mode);
+      }
+    }
+
+    this.updateTransformModeUI(mode);
   }
 
   createPreviewMesh() {
@@ -414,68 +458,90 @@ export class EditMode {
 
     if (!this.selectedObjectType) return;
 
-    let geometry, material;
+    // Create a temporary position for preview mesh
+    const tempPosition = new THREE.Vector3(0, 0, 0);
+    let mesh;
 
+    // Reuse the actual creation methods to ensure preview matches final result
     switch (this.selectedObjectType) {
       case 'wall':
-        geometry = new THREE.BoxGeometry(5, 5, 0.2);
-        material = new THREE.MeshStandardMaterial({
-          color: 0xcccccc,
-          transparent: true,
-          opacity: 0.5,
-          wireframe: false
-        });
+        mesh = this.createWall(tempPosition);
         break;
       case 'glass-wall':
-        geometry = new THREE.BoxGeometry(5, 5, 0.2);
-        material = new THREE.MeshStandardMaterial({
-          color: 0x88ccff,
-          transparent: true,
-          opacity: 0.3,
-          wireframe: false
-        });
+        mesh = this.createGlassWall(tempPosition);
         break;
       case 'platform':
-        // Use second floor dimensions: halfRoomScale x wallThickness x halfRoomScale
-        geometry = new THREE.BoxGeometry(5, 0.2, 5);
-        material = new THREE.MeshStandardMaterial({
-          color: 0xdddddd,
-          transparent: true,
-          opacity: 0.5
-        });
+        mesh = this.createPlatform(tempPosition);
         break;
       case 'cube':
-        geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
-        material = new THREE.MeshStandardMaterial({
-          color: 0x00ffff,
-          transparent: true,
-          opacity: 0.5
-        });
+        mesh = this.createCube(tempPosition);
         break;
       case 'goal':
-        geometry = new THREE.BoxGeometry(1, 1, 1);
-        material = new THREE.MeshStandardMaterial({
-          color: 0xffff00,
-          transparent: true,
-          opacity: 0.5,
-          emissive: 0xffff00,
-          emissiveIntensity: 0.3
-        });
+        mesh = this.createGoal(tempPosition);
         break;
       case 'spawner':
-        geometry = new THREE.CylinderGeometry(0.3, 0.3, 1.6, 16);
-        material = new THREE.MeshStandardMaterial({
-          color: 0x00ff00,
-          transparent: true,
-          opacity: 0.6,
-          emissive: 0x00ff00,
-          emissiveIntensity: 0.3
-        });
+        // Special case: create a new preview spawner, don't use defaultSpawner
+        mesh = this.createSpawnerPreview(tempPosition);
         break;
     }
 
-    this.previewMesh = new THREE.Mesh(geometry, material);
-    this.scene.add(this.previewMesh);
+    if (mesh) {
+      // Convert all materials to semi-transparent preview materials
+      this.makePreviewTransparent(mesh);
+      this.previewMesh = mesh;
+      this.scene.add(this.previewMesh);
+    }
+  }
+
+  createSpawnerPreview(position) {
+    // Create a temporary spawner for preview (not the default spawner)
+    const spawnerGroup = new THREE.Group();
+
+    const spawnerGeom = new THREE.CylinderGeometry(0.3, 0.3, 0.1, 16);
+    const spawnerMat = new THREE.MeshStandardMaterial({
+      color: 0x00ff00,
+      emissive: 0x00ff00,
+      emissiveIntensity: 0.3
+    });
+    const spawnerMesh = new THREE.Mesh(spawnerGeom, spawnerMat);
+    spawnerMesh.rotation.x = Math.PI / 2;
+    spawnerGroup.add(spawnerMesh);
+
+    const arrowGeom = new THREE.ConeGeometry(0.15, 0.4, 8);
+    const arrowMesh = new THREE.Mesh(arrowGeom, spawnerMat);
+    arrowMesh.position.z = 0.3;
+    arrowMesh.rotation.x = -Math.PI / 2;
+    spawnerGroup.add(arrowMesh);
+
+    spawnerGroup.position.copy(position);
+    return spawnerGroup;
+  }
+
+  makePreviewTransparent(object) {
+    // Recursively make all materials in the object transparent for preview
+    object.traverse((child) => {
+      if (child.isMesh && child.material) {
+        // Clone material to avoid affecting the original
+        const originalMat = child.material;
+        const previewMat = originalMat.clone();
+
+        // Make it transparent
+        previewMat.transparent = true;
+        previewMat.opacity = 0.5;
+        previewMat.depthWrite = false; // Better transparency rendering
+
+        // If it has emissive, reduce intensity for preview
+        if (previewMat.emissiveIntensity !== undefined) {
+          previewMat.emissiveIntensity = previewMat.emissiveIntensity * 0.5;
+        }
+
+        child.material = previewMat;
+
+        // Disable shadows for preview
+        child.castShadow = false;
+        child.receiveShadow = false;
+      }
+    });
   }
 
   updatePreview() {
@@ -484,26 +550,167 @@ export class EditMode {
     // Raycast from mouse to find placement position
     this.raycaster.setFromCamera(this.mouse, this.camera);
 
-    // Create a grid plane at y=0 for floor/ceiling, or use existing objects
-    const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-    const intersectPoint = new THREE.Vector3();
+    // Get all raycastable objects in the scene
+    const raycastTargets = this.getRaycastTargets();
+    const intersects = this.raycaster.intersectObjects(raycastTargets, true);
 
-    this.raycaster.ray.intersectPlane(groundPlane, intersectPoint);
+    let finalPosition = null;
 
-    if (intersectPoint) {
-      // Snap to grid
-      intersectPoint.x = Math.round(intersectPoint.x / this.placementGrid) * this.placementGrid;
-      intersectPoint.y = Math.round(intersectPoint.y / this.placementGrid) * this.placementGrid;
-      intersectPoint.z = Math.round(intersectPoint.z / this.placementGrid) * this.placementGrid;
+    if (intersects.length > 0) {
+      const hit = intersects[0];
+      const hitPoint = hit.point.clone();
+      const hitNormal = hit.face.normal.clone();
 
-      this.previewMesh.position.copy(intersectPoint);
+      // Transform normal to world space
+      const worldNormal = hitNormal.transformDirection(hit.object.matrixWorld).normalize();
+
+      // Get object dimensions
+      const objectSize = this.getObjectSize(this.selectedObjectType);
+
+      // Calculate offset based on surface normal and object size
+      const offset = this.calculatePlacementOffset(worldNormal, objectSize);
+
+      // Apply offset to hit point
+      finalPosition = hitPoint.clone().add(offset);
+
+      // Snap to grid (0.5 unit grid)
+      finalPosition.x = Math.round(finalPosition.x / this.placementGrid) * this.placementGrid;
+      finalPosition.y = Math.round(finalPosition.y / this.placementGrid) * this.placementGrid;
+      finalPosition.z = Math.round(finalPosition.z / this.placementGrid) * this.placementGrid;
+
+    } else {
+      // Fallback: raycast against ground plane at y=0
+      const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+      const intersectPoint = new THREE.Vector3();
+
+      if (this.raycaster.ray.intersectPlane(groundPlane, intersectPoint)) {
+        const objectSize = this.getObjectSize(this.selectedObjectType);
+        const offset = this.calculatePlacementOffset(new THREE.Vector3(0, 1, 0), objectSize);
+
+        finalPosition = intersectPoint.clone().add(offset);
+
+        // Snap to grid
+        finalPosition.x = Math.round(finalPosition.x / this.placementGrid) * this.placementGrid;
+        finalPosition.y = Math.round(finalPosition.y / this.placementGrid) * this.placementGrid;
+        finalPosition.z = Math.round(finalPosition.z / this.placementGrid) * this.placementGrid;
+      }
     }
+
+    if (finalPosition) {
+      this.previewMesh.position.copy(finalPosition);
+    }
+  }
+
+  getRaycastTargets() {
+    // Get all objects that can be used as placement surfaces
+    const targets = [];
+
+    // Add level builder objects (chamber walls, floor, ceiling)
+    if (this.levelBuilder) {
+      const chamber = this.levelBuilder.getChamber();
+      if (chamber) {
+        chamber.traverse((child) => {
+          if (child.isMesh) targets.push(child);
+        });
+      }
+
+      const secondFloor = this.levelBuilder.secondFloor;
+      if (secondFloor && secondFloor.visible) {
+        secondFloor.traverse((child) => {
+          if (child.isMesh) targets.push(child);
+        });
+      }
+    }
+
+    // Add editor-placed objects (walls, platforms, etc.)
+    this.objects.forEach(obj => {
+      if (!obj.userData.dynamic && !obj.userData.goal && !obj.userData.spawner) {
+        if (obj.isMesh) {
+          targets.push(obj);
+        } else {
+          obj.traverse((child) => {
+            if (child.isMesh) targets.push(child);
+          });
+        }
+      }
+    });
+
+    return targets;
+  }
+
+  getObjectSize(objectType) {
+    // Return the dimensions of each object type (based on their geometry)
+    switch (objectType) {
+      case 'wall':
+      case 'glass-wall':
+        return new THREE.Vector3(5, 5, 0.2);
+      case 'platform':
+        return new THREE.Vector3(5, 0.2, 5);
+      case 'cube':
+        return new THREE.Vector3(0.2, 0.2, 0.2); // PhysicsCube uses size 0.2
+      case 'goal':
+        return new THREE.Vector3(1, 2, 0.2);
+      case 'spawner':
+        return new THREE.Vector3(0.6, 0.1, 0.6); // Cylinder approximation
+      default:
+        return new THREE.Vector3(1, 1, 1);
+    }
+  }
+
+  getObjectPlacementHeight(objectType) {
+    // Return the height offset for each object type when placed on horizontal surfaces
+    // This is in addition to the object's half-height
+    switch (objectType) {
+      case 'cube':
+        return 1.0; // Float 1.0 unit above surface for easy grabbing
+      case 'spawner':
+        return 1.0; // Float 1.0 unit above surface (player spawn height)
+      case 'wall':
+      case 'glass-wall':
+      case 'platform':
+      case 'goal':
+      default:
+        return 0.0; // Place directly on surface
+    }
+  }
+
+  calculatePlacementOffset(surfaceNormal, objectSize) {
+    // Calculate how much to offset the object so it sits ON the surface, not IN it
+    // The offset should be half the object's dimension in the direction of the surface normal
+
+    const offset = new THREE.Vector3();
+
+    // Determine which axis the normal is most aligned with
+    const absNormal = new THREE.Vector3(
+      Math.abs(surfaceNormal.x),
+      Math.abs(surfaceNormal.y),
+      Math.abs(surfaceNormal.z)
+    );
+
+    // Find the dominant axis and calculate base offset
+    if (absNormal.y > absNormal.x && absNormal.y > absNormal.z) {
+      // Vertical surface (floor or ceiling)
+      offset.copy(surfaceNormal).multiplyScalar(objectSize.y / 2);
+
+      // Add per-object-type height offset for horizontal surfaces
+      const heightOffset = this.getObjectPlacementHeight(this.selectedObjectType);
+      offset.y += Math.sign(surfaceNormal.y) * heightOffset;
+    } else if (absNormal.x > absNormal.z) {
+      // X-axis aligned surface
+      offset.copy(surfaceNormal).multiplyScalar(objectSize.x / 2);
+    } else {
+      // Z-axis aligned surface
+      offset.copy(surfaceNormal).multiplyScalar(objectSize.z / 2);
+    }
+
+    return offset;
   }
 
   placeObject() {
     if (!this.previewMesh) return;
 
     const position = this.previewMesh.position.clone();
+    const rotation = this.previewMesh.rotation.clone();
     let mesh;
 
     switch (this.selectedObjectType) {
@@ -528,8 +735,18 @@ export class EditMode {
     }
 
     if (mesh) {
-      this.scene.add(mesh);
-      this.objects.push(mesh);
+      // Apply the rotation from preview
+      mesh.rotation.copy(rotation);
+
+      // Special handling for spawner - it's already in the scene (default spawner)
+      if (this.selectedObjectType === 'spawner' && mesh === this.defaultSpawner) {
+        // Default spawner is already in the scene, just mark it as moved
+        // Don't add to objects array since it's managed separately
+      } else {
+        // For all other objects, add to scene and track in objects array
+        this.scene.add(mesh);
+        this.objects.push(mesh);
+      }
     }
   }
 
@@ -692,36 +909,105 @@ export class EditMode {
   }
 
   createGoal(position) {
-    const geometry = new THREE.BoxGeometry(1, 2, 0.2);
-    const material = new THREE.MeshStandardMaterial({
-      color: 0xFF00FF,
+    // Check if this is the first door (exit) or an obstacle door
+    // Count default door + editor doors
+    const allDoors = this.getDoors();
+    const isExitDoor = allDoors.length === 0;
+
+    return this.createDoor(position, isExitDoor);
+  }
+
+  createDoor(position, isExitDoor = false) {
+    // Create a door frame group
+    const doorGroup = new THREE.Group();
+
+    // Door frame dimensions
+    const frameWidth = 1.0;      // Width of the door opening
+    const frameHeight = 2.0;     // Height of the door opening
+    const frameThickness = 0.1;  // Thickness of the frame bars
+    const frameDepth = 0.1;      // Depth of the frame
+
+    // Choose colors based on door type
+    const frameColor = isExitDoor ? 0x006400 : 0x00ffff; // Dark green or cyan
+    const planeColor = isExitDoor ? 0x000000 : 0x00ffff; // Black or cyan
+
+    // Shared frame material for all 3 frame bars (memory efficient)
+    const frameMaterial = new THREE.MeshStandardMaterial({
+      color: frameColor,
       roughness: 0.7,
-      metalness: 0.0
+      metalness: 0.0,
+      emissive: frameColor,
+      emissiveIntensity: 0.2
     });
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.copy(position);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    mesh.userData.goal = true;
-    mesh.userData.editorPlaced = true;
-    return mesh;
+
+    // Left vertical bar
+    const leftBar = new THREE.Mesh(
+      new THREE.BoxGeometry(frameThickness, frameHeight, frameDepth),
+      frameMaterial
+    );
+    leftBar.position.set(-frameWidth / 2 - frameThickness / 2, 0, 0);
+    leftBar.castShadow = true;
+    leftBar.receiveShadow = true;
+    doorGroup.add(leftBar);
+
+    // Right vertical bar
+    const rightBar = new THREE.Mesh(
+      new THREE.BoxGeometry(frameThickness, frameHeight, frameDepth),
+      frameMaterial
+    );
+    rightBar.position.set(frameWidth / 2 + frameThickness / 2, 0, 0);
+    rightBar.castShadow = true;
+    rightBar.receiveShadow = true;
+    doorGroup.add(rightBar);
+
+    // Top horizontal bar
+    const topBar = new THREE.Mesh(
+      new THREE.BoxGeometry(frameWidth + frameThickness * 2, frameThickness, frameDepth),
+      frameMaterial
+    );
+    topBar.position.set(0, frameHeight / 2 + frameThickness / 2, 0);
+    topBar.castShadow = true;
+    topBar.receiveShadow = true;
+    doorGroup.add(topBar);
+
+    // Center plane (black for exit, cyan for obstacle)
+    const planeMaterial = new THREE.MeshStandardMaterial({
+      color: planeColor,
+      side: THREE.DoubleSide,
+      roughness: 0.1,
+      metalness: 0.0,
+      emissive: planeColor,
+      emissiveIntensity: isExitDoor ? 0.0 : 0.3
+    });
+    const plane = new THREE.Mesh(
+      new THREE.PlaneGeometry(frameWidth, frameHeight),
+      planeMaterial
+    );
+    plane.position.set(0, 0, 0);
+    plane.name = 'doorPlane'; // Name it so we can find it later
+    doorGroup.add(plane);
+
+    doorGroup.position.copy(position);
+    doorGroup.userData.door = true;
+    doorGroup.userData.isExitDoor = isExitDoor;
+    doorGroup.userData.isOpen = false; // Track door state
+    doorGroup.userData.editorPlaced = true;
+    doorGroup.userData.initialScale = doorGroup.scale.clone(); // Store initial scale
+    return doorGroup;
   }
 
   createSpawner(position) {
-    // Only allow one spawner - remove existing one
-    const existingSpawner = this.objects.find(obj => obj.userData.spawner);
-    if (existingSpawner) {
-      this.scene.remove(existingSpawner);
-      const index = this.objects.indexOf(existingSpawner);
-      if (index > -1) {
-        this.objects.splice(index, 1);
-      }
+    // Reuse the default spawner instead of creating a new one
+    // This ensures there's only one spawner in the scene
+    if (this.defaultSpawner) {
+      this.defaultSpawner.position.copy(position);
+      this.defaultSpawner.userData.editorMoved = true; // Mark that user has moved it
+      return this.defaultSpawner;
     }
 
-    // Create spawner as Group (same structure as default spawner)
+    // Fallback: shouldn't happen, but create a new spawner if default doesn't exist
     const spawnerGroup = new THREE.Group();
 
-    // Cylinder base (same as default)
     const spawnerGeom = new THREE.CylinderGeometry(0.3, 0.3, 0.1, 16);
     const spawnerMat = new THREE.MeshStandardMaterial({
       color: 0x00ff00,
@@ -729,10 +1015,9 @@ export class EditMode {
       emissiveIntensity: 0.3
     });
     const spawnerMesh = new THREE.Mesh(spawnerGeom, spawnerMat);
-    spawnerMesh.rotation.x = Math.PI / 2; // Lay flat
+    spawnerMesh.rotation.x = Math.PI / 2;
     spawnerGroup.add(spawnerMesh);
 
-    // Arrow to show forward direction (same as default)
     const arrowGeom = new THREE.ConeGeometry(0.15, 0.4, 8);
     const arrowMesh = new THREE.Mesh(arrowGeom, spawnerMat);
     arrowMesh.position.z = 0.3;
@@ -741,7 +1026,6 @@ export class EditMode {
 
     spawnerGroup.position.copy(position);
     spawnerGroup.userData.spawner = true;
-    spawnerGroup.userData.editorPlaced = true;
     return spawnerGroup;
   }
 
@@ -753,15 +1037,15 @@ export class EditMode {
         this.moveState.left || this.moveState.right ||
         this.moveState.up || this.moveState.down) {
 
-      // Get camera direction (forward/backward)
+      // Get camera direction (forward/backward) - includes pitch for free-fly
       const direction = new THREE.Vector3();
       direction.set(
-        -Math.sin(this.yaw),
-        0,
-        -Math.cos(this.yaw)
+        -Math.sin(this.yaw) * Math.cos(this.pitch),
+        Math.sin(this.pitch),
+        -Math.cos(this.yaw) * Math.cos(this.pitch)
       ).normalize();
 
-      // Get right vector (left/right)
+      // Get right vector (left/right) - remains horizontal
       const right = new THREE.Vector3();
       right.set(
         Math.cos(this.yaw),
@@ -830,6 +1114,12 @@ export class EditMode {
 
     // Show default objects for reference
     this.showDefaultObjects();
+
+    // Initialize default door as first editor door if not already in objects
+    this.initializeDefaultDoor();
+
+    // Reset all doors to closed state (in case coming from play mode)
+    this.resetAllDoors();
   }
 
   exit() {
@@ -883,11 +1173,70 @@ export class EditMode {
     this.defaultSpawner = spawner;
   }
 
+  initializeDefaultDoor() {
+    // Move default door from levelBuilder to editor objects
+    if (!this.levelBuilder) return;
+
+    const defaultDoor = this.levelBuilder.getGoal();
+    if (!defaultDoor) return;
+
+    // Check if door is still in scene (wasn't deleted in previous edit session)
+    if (!defaultDoor.parent) {
+      // Door was deleted, don't add it back
+      return;
+    }
+
+    // Reset door state in case it was opened/hidden during play mode
+    this.resetDoorState(defaultDoor);
+
+    // Check if default door is already in objects array
+    if (this.objects.includes(defaultDoor)) return;
+
+    // Mark it as editor-placed door
+    defaultDoor.userData.editorPlaced = true;
+
+    // Add to objects array so it can be managed like any other editor door
+    this.objects.push(defaultDoor);
+  }
+
+  resetDoorState(door) {
+    // Reset door to editor/closed state
+    door.visible = true;
+    door.scale.set(1, 1, 1);
+    door.userData.isOpen = false;
+
+    // Ensure all children are visible
+    door.traverse((child) => {
+      child.visible = true;
+    });
+  }
+
+  resetAllDoors() {
+    // Reset all editor doors to closed state (for returning from play mode)
+    const allDoors = this.objects.filter(obj => obj.userData.door);
+    allDoors.forEach(door => {
+      this.resetDoorState(door);
+    });
+  }
+
   showDefaultObjects() {
     // Show default level objects in edit mode for reference
     if (this.levelBuilder) {
       const goal = this.levelBuilder.getGoal();
-      if (goal) goal.visible = true;
+      if (goal) {
+        goal.visible = true;
+        // Ensure all children (door frame parts) are visible
+        goal.traverse((child) => {
+          child.visible = true;
+          // Reset stencil properties that may have been set by portal renderer
+          if (child.isMesh && child.material) {
+            child.material.stencilWrite = false;
+            child.material.stencilFunc = THREE.AlwaysStencilFunc;
+            child.material.stencilRef = 0;
+            child.material.needsUpdate = true;
+          }
+        });
+      }
 
       const secondFloor = this.levelBuilder.secondFloor;
       if (secondFloor) secondFloor.visible = true;
@@ -945,12 +1294,34 @@ export class EditMode {
   }
 
   getSpawnerPosition() {
-    const spawner = this.objects.find(obj => obj.userData.spawner);
-    return spawner ? spawner.position.clone() : null;
+    // Check if default spawner has been moved by the user
+    if (this.defaultSpawner && this.defaultSpawner.userData.editorMoved) {
+      return {
+        position: this.defaultSpawner.position.clone(),
+        rotation: this.defaultSpawner.rotation.clone()
+      };
+    }
+    // If not moved, return null (use default position)
+    return null;
   }
 
   getGoals() {
-    return this.objects.filter(obj => obj.userData.goal);
+    // Keep for backward compatibility, but use door terminology
+    return this.getDoors();
+  }
+
+  getDoors() {
+    // Get all doors from objects array (includes default door after initialization)
+    return this.objects.filter(obj => obj.userData.door);
+  }
+
+  getSpawners() {
+    // Get all spawners (defaultSpawner is the only spawner, may be in objects array if moved)
+    const spawners = [];
+    if (this.defaultSpawner) {
+      spawners.push(this.defaultSpawner);
+    }
+    return spawners;
   }
 
   clearAllObjects() {
@@ -1001,6 +1372,14 @@ export class EditMode {
     // Use fixed gizmo size regardless of object size
     this.transformControls.setSize(1.0);
 
+    // Update UI to reflect which tools are available for this object
+    this.updateAvailableTools();
+
+    // If current tool mode is scale and object can't be scaled, switch to translate
+    if (this.currentToolMode === 'scale' && !this.canObjectBeScaled(obj)) {
+      this.switchToolMode('translate');
+    }
+
     // Apply current tool mode
     if (this.currentToolMode === 'select') {
       this.transformControls.visible = false;
@@ -1027,6 +1406,9 @@ export class EditMode {
     this.transformControls.detach();
     this.transformControls.visible = false; // Hide gizmos when nothing is selected
     this.selectionCircle.visible = false; // Hide selection circle when nothing is selected
+
+    // Re-enable all tools when nothing is selected
+    this.updateAvailableTools();
   }
 
   setTransformMode(mode) {
@@ -1051,16 +1433,92 @@ export class EditMode {
   deleteSelectedObject() {
     if (!this.selectedObject) return;
 
-    // Remove from scene and objects array
+    // Prevent deleting the last door
+    if (this.selectedObject.userData.door) {
+      const allDoors = this.getDoors();
+      if (allDoors.length <= 1) {
+        console.warn('Cannot delete the last door');
+        return;
+      }
+    }
+
+    // Prevent deleting the last (and only) spawner
+    if (this.selectedObject.userData.spawner) {
+      const allSpawners = this.getSpawners();
+      if (allSpawners.length <= 1) {
+        console.warn('Cannot delete the last spawner');
+        return;
+      }
+    }
+
+    // Check if we're deleting an exit door
+    const isExitDoor = this.selectedObject.userData.door && this.selectedObject.userData.isExitDoor;
+
+    // Check if we're deleting the default spawner
+    const isDeletingDefaultSpawner = this.selectedObject === this.defaultSpawner;
+
+    // Remove from scene and objects array (works for all doors now)
     this.scene.remove(this.selectedObject);
     const index = this.objects.indexOf(this.selectedObject);
     if (index > -1) {
       this.objects.splice(index, 1);
     }
 
+    // If deleting default spawner, clear the reference
+    if (isDeletingDefaultSpawner) {
+      this.defaultSpawner = null;
+    }
+
     // Detach transform controls and hide gizmos
     this.transformControls.detach();
     this.transformControls.visible = false;
     this.selectedObject = null;
+
+    // If we deleted an exit door, promote the next door to exit door
+    if (isExitDoor) {
+      this.promoteNextDoorToExit();
+    }
+  }
+
+  promoteNextDoorToExit() {
+    // Get all remaining doors
+    const allDoors = this.getDoors();
+
+    // Check if there's any exit door remaining
+    const hasExitDoor = allDoors.some(door => door.userData.isExitDoor);
+
+    if (!hasExitDoor && allDoors.length > 0) {
+      // No exit door exists, promote the first door (prioritize default door)
+      const doorToPromote = allDoors[0];
+
+      // Convert to exit door (dark green)
+      this.convertDoorToExit(doorToPromote);
+    }
+  }
+
+  convertDoorToExit(door) {
+    // Mark as exit door
+    door.userData.isExitDoor = true;
+
+    // Change colors to dark green + black
+    const frameColor = 0x006400;
+    const planeColor = 0x000000;
+
+    door.traverse((child) => {
+      if (child.isMesh && child.material) {
+        if (child.name === 'doorPlane') {
+          // Change plane to black
+          child.material.color.setHex(planeColor);
+          child.material.emissive.setHex(planeColor);
+          child.material.emissiveIntensity = 0.0;
+        } else {
+          // Change frame to dark green
+          child.material.color.setHex(frameColor);
+          child.material.emissive.setHex(frameColor);
+          child.material.emissiveIntensity = 0.2;
+        }
+        child.material.needsUpdate = true;
+      }
+    });
   }
 }

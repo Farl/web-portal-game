@@ -59,8 +59,8 @@ export class Portal extends THREE.Group {
   }
 
   placeAt(hit) {
-    // hit: { point, face?.normal, object, uv }
-    const normal = new THREE.Vector3().copy(hit.face?.normal ?? new THREE.Vector3(0, 0, 1));
+    // hit: { point, face.normal, object, uv }
+    const normal = new THREE.Vector3().copy((hit.face && hit.face.normal) ? hit.face.normal : new THREE.Vector3(0, 0, 1));
     const normalMatrix = new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld);
     const worldNormal = normal.clone().applyMatrix3(normalMatrix).normalize();
 

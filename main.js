@@ -121,6 +121,7 @@ class PortalGame {
       CONFIG.player.startPosition.y,
       CONFIG.player.startPosition.z
     );
+    this.defaultSpawner.userData.spawner = true; // Mark as spawner for editor
     this.defaultSpawner.visible = false; // Hidden by default
     this.sceneManager.scene.add(this.defaultSpawner);
 
@@ -185,9 +186,13 @@ class PortalGame {
     const editorObjects = this.editMode.getPlacedObjects();
 
     // Set player spawn position and rotation from spawner if exists
-    const spawnerPos = this.editMode.getSpawnerPosition();
-    if (spawnerPos) {
-      this.fps.object.position.set(spawnerPos.x, spawnerPos.y + CONFIG.player.eyeHeight * 0.5, spawnerPos.z);
+    const spawnerData = this.editMode.getSpawnerPosition();
+    if (spawnerData) {
+      const pos = spawnerData.position;
+      this.fps.object.position.set(pos.x, pos.y + CONFIG.player.eyeHeight * 0.5, pos.z);
+      // Apply spawner rotation to player (only Y-axis rotation for facing direction)
+      this.fps.object.rotation.y = spawnerData.rotation.y;
+      this.sceneManager.camera.rotation.y = spawnerData.rotation.y;
     } else {
       // Use default spawn position
       this.fps.object.position.set(
@@ -198,7 +203,12 @@ class PortalGame {
     }
 
     // Add editor-placed objects as obstacles for collision
-    const staticObjects = editorObjects.filter(obj => !obj.userData.dynamic);
+    // Exclude spawners and goals - they are markers, not obstacles
+    const staticObjects = editorObjects.filter(obj =>
+      !obj.userData.dynamic &&
+      !obj.userData.spawner &&
+      !obj.userData.goal
+    );
     if (staticObjects.length > 0) {
       this.playerController.addObstacles(staticObjects);
     }
@@ -288,6 +298,8 @@ class PortalGame {
       CONFIG.physics.cubeStartPosition.z
     );
     this.defaultCube.velocity.set(0, 0, 0);
+    this.defaultCube.scale.set(1, 1, 1); // Reset scale
+    this.defaultCube.userData.consumed = false; // Reset consumed state
 
     // Set up cube references for physics
     this.cube = this.defaultCube;
@@ -304,11 +316,22 @@ class PortalGame {
       }
       cube.velocity.set(0, 0, 0);
       cube.rotation.set(0, 0, 0);
+      cube.scale.set(1, 1, 1); // Reset scale
+      cube.userData.consumed = false; // Reset consumed state
+      cube.visible = true; // Make sure it's visible
     });
 
-    // Always show default goal in play mode
-    const defaultGoal = this.levelBuilder.getGoal();
-    if (defaultGoal) defaultGoal.visible = true;
+    // Reset and show all doors (default + editor-placed)
+    const allDoors = this.editMode.getDoors();
+    allDoors.forEach(door => {
+      door.visible = true;
+      door.userData.isOpen = false; // Reset to closed state
+      door.scale.set(1, 1, 1); // Reset scale
+      // Ensure all children (door frame parts) are visible
+      door.traverse((child) => {
+        child.visible = true;
+      });
+    });
 
     // Always show default second floor in play mode
     const secondFloor = this.levelBuilder.secondFloor;
@@ -614,22 +637,109 @@ class PortalGame {
     // Update charge
     this.interactionSystem.updateCharge();
     this.interactionSystem.updateGaugeUI();
+
+    // Check door-cube collisions
+    this.checkDoorCubeCollisions();
   }
 
+  checkDoorCubeCollisions() {
+    // Get all obstacle doors (not exit doors) including default door
+    const allDoors = this.editMode.getDoors();
+    const obstacleDoors = allDoors.filter(door => !door.userData.isExitDoor && !door.userData.isOpen);
+
+    if (obstacleDoors.length === 0) return;
+
+    // Get all active cubes
+    const allCubes = [this.cube, ...(this.editorCubes || [])].filter(cube => cube && cube.visible);
+
+    // Check each cube against each obstacle door
+    obstacleDoors.forEach(door => {
+      const doorPos = door.getWorldPosition(new THREE.Vector3());
+      const doorSize = 1.0; // Door width/height for collision
+
+      allCubes.forEach(cube => {
+        if (cube.userData.consumed) return; // Skip already consumed cubes
+
+        // Get world position (important for grabbed cubes which are parented to camera)
+        const cubePos = cube.getWorldPosition(new THREE.Vector3());
+        const cubeSize = cube.size || 0.2;
+
+        // Simple AABB collision detection
+        const distance = cubePos.distanceTo(doorPos);
+        if (distance < (doorSize + cubeSize) / 2) {
+          // Collision detected! Open the door and consume the cube
+          this.openDoor(door);
+          this.consumeCube(cube);
+        }
+      });
+    });
+  }
+
+  openDoor(door) {
+    door.userData.isOpen = true;
+    // Animate door closing (scale to 0)
+    const animationDuration = 0.5; // 0.5 seconds
+    const startScale = door.scale.clone();
+    const startTime = performance.now();
+
+    const animate = () => {
+      const elapsed = (performance.now() - startTime) / 1000;
+      const progress = Math.min(elapsed / animationDuration, 1.0);
+
+      // Ease out cubic
+      const easeProgress = 1 - Math.pow(1 - progress, 3);
+
+      door.scale.lerpVectors(startScale, new THREE.Vector3(0, 0, 0), easeProgress);
+
+      if (progress < 1.0) {
+        requestAnimationFrame(animate);
+      } else {
+        door.visible = false; // Hide completely when animation is done
+      }
+    };
+
+    animate();
+  }
+
+  consumeCube(cube) {
+    cube.userData.consumed = true;
+    // Animate cube disappearing (scale to 0)
+    const animationDuration = 0.5; // 0.5 seconds
+    const startScale = cube.scale.clone();
+    const startTime = performance.now();
+
+    const animate = () => {
+      const elapsed = (performance.now() - startTime) / 1000;
+      const progress = Math.min(elapsed / animationDuration, 1.0);
+
+      // Ease out cubic
+      const easeProgress = 1 - Math.pow(1 - progress, 3);
+
+      cube.scale.lerpVectors(startScale, new THREE.Vector3(0, 0, 0), easeProgress);
+
+      if (progress < 1.0) {
+        requestAnimationFrame(animate);
+      } else {
+        cube.visible = false; // Hide completely when animation is done
+      }
+    };
+
+    animate();
+  }
 
   checkGoalCompletion() {
     if (this.levelCompleted) return;
 
     const playerPos = this.fps.object.position.clone();
 
-    // Check editor-placed goals first, then default level goal
-    const editorGoals = this.editMode.getGoals();
-    const goalsToCheck = editorGoals.length > 0 ? editorGoals : [this.levelBuilder.getGoal()];
+    // Check all exit doors (default + editor-placed)
+    const allDoors = this.editMode.getDoors();
+    const exitDoors = allDoors.filter(door => door.userData.isExitDoor);
 
-    for (const goal of goalsToCheck) {
-      const goalPos = goal.getWorldPosition(new THREE.Vector3());
+    for (const door of exitDoors) {
+      const doorPos = door.getWorldPosition(new THREE.Vector3());
 
-      if (playerPos.distanceTo(goalPos) < CONFIG.goal.triggerDistance) {
+      if (playerPos.distanceTo(doorPos) < CONFIG.goal.triggerDistance) {
         if (this.fps.controls && this.fps.controls.isLocked) {
           this.fps.controls.unlock();
         }

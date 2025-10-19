@@ -151,32 +151,87 @@ export class LevelBuilder {
   }
 
   /**
-   * Creates the goal (door)
+   * Creates the goal (door frame with black plane)
    */
   buildGoal() {
-    const { size } = CONFIG.goal;
     const { scale, secondFloorHeight, colors } = CONFIG.room;
     const halfRoomScale = scale / 2.0;
 
-    const goalScale = new THREE.Vector3(size.x, size.y, size.z);
-    const goalGeo = new THREE.BoxGeometry(goalScale.x, goalScale.y, goalScale.z);
-    const goalMat = new THREE.MeshStandardMaterial({
-      color: colors.goal,
+    // Create door frame group
+    const doorGroup = new THREE.Group();
+
+    // Door frame dimensions
+    const frameWidth = 1.0;
+    const frameHeight = 2.0;
+    const frameThickness = 0.1;
+    const frameDepth = 0.1;
+
+    // Shared frame material for all 3 frame bars (memory efficient)
+    const frameMaterial = new THREE.MeshStandardMaterial({
+      color: 0x006400,
       roughness: 0.7,
-      metalness: 0.0
+      metalness: 0.0,
+      emissive: 0x006400,
+      emissiveIntensity: 0.2
     });
 
-    this.goal = new THREE.Mesh(goalGeo, goalMat);
-    this.goal.position.set(
+    // Left vertical bar
+    const leftBar = new THREE.Mesh(
+      new THREE.BoxGeometry(frameThickness, frameHeight, frameDepth),
+      frameMaterial
+    );
+    leftBar.position.set(-frameWidth / 2 - frameThickness / 2, 0, 0);
+    leftBar.castShadow = true;
+    leftBar.receiveShadow = true;
+    doorGroup.add(leftBar);
+
+    // Right vertical bar
+    const rightBar = new THREE.Mesh(
+      new THREE.BoxGeometry(frameThickness, frameHeight, frameDepth),
+      frameMaterial
+    );
+    rightBar.position.set(frameWidth / 2 + frameThickness / 2, 0, 0);
+    rightBar.castShadow = true;
+    rightBar.receiveShadow = true;
+    doorGroup.add(rightBar);
+
+    // Top horizontal bar
+    const topBar = new THREE.Mesh(
+      new THREE.BoxGeometry(frameWidth + frameThickness * 2, frameThickness, frameDepth),
+      frameMaterial
+    );
+    topBar.position.set(0, frameHeight / 2 + frameThickness / 2, 0);
+    topBar.castShadow = true;
+    topBar.receiveShadow = true;
+    doorGroup.add(topBar);
+
+    // Black plane in the center (the "portal" area)
+    const planeMaterial = new THREE.MeshStandardMaterial({
+      color: 0x000000,
+      side: THREE.DoubleSide,
+      roughness: 0.1,
+      metalness: 0.0
+    });
+    const plane = new THREE.Mesh(
+      new THREE.PlaneGeometry(frameWidth, frameHeight),
+      planeMaterial
+    );
+    plane.position.set(0, 0, 0);
+    plane.name = 'doorPlane';
+    doorGroup.add(plane);
+
+    // Position the door frame
+    doorGroup.position.set(
       -halfRoomScale / 2.0,
-      secondFloorHeight + goalScale.y / 2,
+      secondFloorHeight + frameHeight / 2,
       -halfRoomScale / 2.0
     );
-    this.goal.castShadow = true;
-    this.goal.receiveShadow = true;
-    this.goal.userData.goal = true;
-    this.goal.visible = false; // Hidden by default
+    doorGroup.userData.door = true;
+    doorGroup.userData.isExitDoor = true;
+    doorGroup.userData.goal = true; // Keep for backward compatibility
+    doorGroup.visible = false; // Hidden by default
 
+    this.goal = doorGroup;
     this.scene.add(this.goal);
     this.obstacles.push(this.goal);
   }

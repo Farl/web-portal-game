@@ -25,7 +25,7 @@ export const CONFIG = {
   player: {
     eyeHeight: 1.6,
     minHeight: 1.0,
-    radius: 0.2,
+    radius: 0.01,
     startPosition: { x: 0, y: 1.0, z: 4 },
     groundedThreshold: 1.02,
   },
@@ -42,7 +42,7 @@ export const CONFIG = {
       floor: 0xcccccc,   // Light gray
       ceiling: 0x999999, // Dark gray
       secondFloor: 0xdddddd,
-      goal: 0xFF00FF,    // Magenta
+      goal: 0x50FF50
     },
     secondFloorHeight: 5, // Half of room scale
     gridEnabled: true,

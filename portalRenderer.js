@@ -31,19 +31,30 @@ export class PortalRenderer {
 
   /**
    * Apply stencil test to all materials in scene
+   * Uses a material-level Map to avoid duplicate saves when materials are shared
    */
   applyStencilTest(scene, stencilRef, originalMaterials) {
+    const materialMap = new Map(); // Track which materials we've already processed
+
     scene.traverse((obj) => {
       if (obj.isMesh && obj.material) {
         const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
         const originals = [];
 
         materials.forEach(mat => {
-          originals.push({
-            stencilWrite: mat.stencilWrite,
-            stencilFunc: mat.stencilFunc,
-            stencilRef: mat.stencilRef
-          });
+          // Only save original values if we haven't processed this material yet
+          if (!materialMap.has(mat)) {
+            materialMap.set(mat, {
+              stencilWrite: mat.stencilWrite,
+              stencilFunc: mat.stencilFunc,
+              stencilRef: mat.stencilRef
+            });
+          }
+
+          // Save reference to the original for this object
+          originals.push(materialMap.get(mat));
+
+          // Apply stencil test settings
           mat.stencilWrite = true;
           mat.stencilFunc = THREE.EqualStencilFunc;
           mat.stencilRef = stencilRef;

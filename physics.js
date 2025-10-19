@@ -76,7 +76,8 @@ export class PhysicsCube extends THREE.Mesh {
 
     // Portal traversal: swept-sphere against portal plane, then aperture check
     for (const p of portals) {
-      if (!p.isPlaced || !p.linked?.isPlaced) continue;
+      // Check portal and linked portal validity
+      if (!p || !p.isPlaced || !p.linked || !p.linked.isPlaced) continue;
       if (this.portalCooldown > 0) {
         continue;
       }
