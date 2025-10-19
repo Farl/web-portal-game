@@ -12,6 +12,9 @@ export class EditMode {
     this.camera = camera;
     this.renderer = renderer;
 
+    // Level manager reference (set externally)
+    this.levelManager = null;
+
     // Yaw/Pitch mouse look controls
     this.yaw = 0;
     this.pitch = 0;
@@ -24,9 +27,10 @@ export class EditMode {
     this.transformControls.addEventListener('dragging-changed', (event) => {
       this.isDraggingTransform = event.value;
 
-      // When dragging ends, force snap the final values
+      // When dragging ends, force snap the final values and auto-save
       if (!event.value) {
         this.snapTransform();
+        this.autoSave();
       }
     });
 
@@ -154,6 +158,22 @@ export class EditMode {
             this.clearObjectSelection();
           } else {
             this.deselectObject();
+          }
+          break;
+        // Level slot shortcuts (1, 2, 3)
+        case "Digit1":
+          if (!this.isMouseLookActive) {
+            this.switchToSlot(1);
+          }
+          break;
+        case "Digit2":
+          if (!this.isMouseLookActive) {
+            this.switchToSlot(2);
+          }
+          break;
+        case "Digit3":
+          if (!this.isMouseLookActive) {
+            this.switchToSlot(3);
           }
           break;
       }
@@ -344,6 +364,58 @@ export class EditMode {
     // Exit edit mode button
     document.getElementById('btn-exit-edit').addEventListener('click', () => {
       this.exit();
+    });
+
+    // Level slot buttons
+    document.querySelectorAll('[data-slot]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const slot = parseInt(btn.dataset.slot, 10);
+        this.switchToSlot(slot);
+      });
+    });
+
+    // Reset to default button
+    document.getElementById('btn-reset-level').addEventListener('click', () => {
+      this.resetToDefault();
+    });
+
+    // Controls panel toggle
+    this.setupControlsPanel();
+  }
+
+  /**
+   * Setup controls panel toggle functionality
+   */
+  setupControlsPanel() {
+    const toggleBtn = document.getElementById('controls-toggle-btn');
+    const controlsContent = document.getElementById('controls-content');
+
+    // Load saved state from localStorage (default: open)
+    const savedState = localStorage.getItem('editor_controls_panel_visible');
+    const isVisible = savedState === null ? true : savedState === 'true';
+
+    // Apply initial state
+    if (!isVisible) {
+      controlsContent.classList.add('collapsed');
+    } else {
+      toggleBtn.classList.add('active');
+    }
+
+    // Toggle on click
+    toggleBtn.addEventListener('click', () => {
+      const isCurrentlyVisible = !controlsContent.classList.contains('collapsed');
+
+      if (isCurrentlyVisible) {
+        // Hide
+        controlsContent.classList.add('collapsed');
+        toggleBtn.classList.remove('active');
+        localStorage.setItem('editor_controls_panel_visible', 'false');
+      } else {
+        // Show
+        controlsContent.classList.remove('collapsed');
+        toggleBtn.classList.add('active');
+        localStorage.setItem('editor_controls_panel_visible', 'true');
+      }
     });
   }
 
@@ -747,6 +819,9 @@ export class EditMode {
         this.scene.add(mesh);
         this.objects.push(mesh);
       }
+
+      // Auto-save after placing object
+      this.autoSave();
     }
   }
 
@@ -804,8 +879,12 @@ export class EditMode {
     return texture;
   }
 
-  createWall(position) {
-    const isPortalable = document.getElementById('portalable-checkbox').checked;
+  createWall(position, portalable = null) {
+    // Use provided portalable value, or fall back to checkbox if not specified
+    const isPortalable = portalable !== null
+      ? portalable
+      : document.getElementById('portalable-checkbox').checked;
+
     // Use reasonable wall size: 5 x 5 x 0.2 (same proportions as chamber walls)
     const geometry = new THREE.BoxGeometry(5, 5, 0.2);
 
@@ -865,8 +944,12 @@ export class EditMode {
     return mesh;
   }
 
-  createPlatform(position) {
-    const isPortalable = document.getElementById('portalable-checkbox').checked;
+  createPlatform(position, portalable = null) {
+    // Use provided portalable value, or fall back to checkbox if not specified
+    const isPortalable = portalable !== null
+      ? portalable
+      : document.getElementById('portalable-checkbox').checked;
+
     // Use second floor dimensions: 5 x 0.2 x 5
     const geometry = new THREE.BoxGeometry(5, 0.2, 5);
 
@@ -1115,7 +1198,11 @@ export class EditMode {
     // Show default objects for reference
     this.showDefaultObjects();
 
-    // Initialize default door as first editor door if not already in objects
+    // Load current level slot (this will clear objects and reload)
+    this.loadCurrentSlot();
+
+    // After loading, ensure default door is properly initialized
+    // This must happen AFTER loadCurrentSlot because loadCurrentSlot calls clearAllObjects
     this.initializeDefaultDoor();
 
     // Reset all doors to closed state (in case coming from play mode)
@@ -1325,7 +1412,22 @@ export class EditMode {
   }
 
   clearAllObjects() {
-    this.objects.forEach(obj => this.scene.remove(obj));
+    // Detach transform controls first to avoid scene graph errors
+    if (this.transformControls && this.selectedObject) {
+      this.transformControls.detach();
+      this.selectedObject = null;
+      this.transformControls.visible = false;
+    }
+
+    // Get default door reference before clearing
+    const defaultDoor = this.levelBuilder ? this.levelBuilder.getGoal() : null;
+
+    this.objects.forEach(obj => {
+      // Don't remove default door from scene (it's managed by levelBuilder)
+      if (obj !== defaultDoor) {
+        this.scene.remove(obj);
+      }
+    });
     this.objects = [];
   }
 
@@ -1457,9 +1559,17 @@ export class EditMode {
     // Check if we're deleting the default spawner
     const isDeletingDefaultSpawner = this.selectedObject === this.defaultSpawner;
 
-    // Remove from scene and objects array (works for all doors now)
-    this.scene.remove(this.selectedObject);
-    const index = this.objects.indexOf(this.selectedObject);
+    // Store reference to object before detaching
+    const objectToDelete = this.selectedObject;
+
+    // Detach transform controls FIRST (before removing from scene)
+    this.transformControls.detach();
+    this.transformControls.visible = false;
+    this.selectedObject = null;
+
+    // Now safe to remove from scene and objects array
+    this.scene.remove(objectToDelete);
+    const index = this.objects.indexOf(objectToDelete);
     if (index > -1) {
       this.objects.splice(index, 1);
     }
@@ -1469,15 +1579,13 @@ export class EditMode {
       this.defaultSpawner = null;
     }
 
-    // Detach transform controls and hide gizmos
-    this.transformControls.detach();
-    this.transformControls.visible = false;
-    this.selectedObject = null;
-
     // If we deleted an exit door, promote the next door to exit door
     if (isExitDoor) {
       this.promoteNextDoorToExit();
     }
+
+    // Auto-save after deleting object
+    this.autoSave();
   }
 
   promoteNextDoorToExit() {
@@ -1520,5 +1628,114 @@ export class EditMode {
         child.material.needsUpdate = true;
       }
     });
+  }
+
+  /**
+   * Set level manager reference
+   */
+  setLevelManager(levelManager) {
+    this.levelManager = levelManager;
+  }
+
+  /**
+   * Auto-save current level (debounced to avoid excessive saves)
+   */
+  autoSave() {
+    if (!this.levelManager) return;
+
+    // Clear existing timeout
+    if (this._autoSaveTimeout) {
+      clearTimeout(this._autoSaveTimeout);
+    }
+
+    // Debounce save by 500ms
+    this._autoSaveTimeout = setTimeout(() => {
+      this.levelManager.saveLevel(this);
+      this.updateSlotUI();
+    }, 500);
+  }
+
+  /**
+   * Switch to a different level slot
+   */
+  switchToSlot(slot) {
+    if (!this.levelManager) {
+      console.warn("[EditMode] LevelManager not set");
+      return;
+    }
+
+    // Deselect and detach transform controls before switching slots
+    this.deselectObject();
+
+    // Save current slot before switching
+    this.levelManager.saveLevel(this);
+
+    // Switch slot
+    this.levelManager.setCurrentSlot(slot);
+
+    // Load new slot
+    const levelData = this.levelManager.loadLevel();
+    this.levelManager.applyLevel(this, levelData);
+
+    // Update UI
+    this.updateSlotUI();
+
+    console.log(`[EditMode] Switched to slot ${slot}`);
+  }
+
+  /**
+   * Reset current slot to default level
+   */
+  resetToDefault() {
+    if (!this.levelManager) {
+      console.warn("[EditMode] LevelManager not set");
+      return;
+    }
+
+    if (!confirm(`Reset slot ${this.levelManager.getCurrentSlot()} to default level?`)) {
+      return;
+    }
+
+    // Deselect and detach transform controls before resetting
+    this.deselectObject();
+
+    // Reset and load default
+    const levelData = this.levelManager.resetToDefault();
+    this.levelManager.applyLevel(this, levelData);
+
+    // Update UI
+    this.updateSlotUI();
+
+    console.log(`[EditMode] Reset slot ${this.levelManager.getCurrentSlot()} to default`);
+  }
+
+  /**
+   * Update slot selector UI to show current slot
+   */
+  updateSlotUI() {
+    if (!this.levelManager) return;
+
+    const currentSlot = this.levelManager.getCurrentSlot();
+
+    // Update slot button states
+    document.querySelectorAll('[data-slot]').forEach(btn => {
+      const slot = parseInt(btn.dataset.slot, 10);
+      if (slot === currentSlot) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
+  }
+
+  /**
+   * Load current slot when entering edit mode
+   */
+  loadCurrentSlot() {
+    if (!this.levelManager) return;
+
+    const levelData = this.levelManager.loadLevel();
+    this.levelManager.applyLevel(this, levelData);
+    this.updateSlotUI();
   }
 }

@@ -12,10 +12,18 @@ export class PortalPlacement {
   }
 
   /**
-   * Add editor-placed objects to portalable surfaces
+   * Add editor-placed objects for raycast detection
+   * Includes ALL objects (both portalable and non-portalable)
+   * Non-portalable objects will block raycasts but reject portal placement
    */
   setEditorObjects(objects) {
-    this.editorObjects = objects.filter(obj => obj.userData.portalable);
+    // Include all editor objects for raycast, not just portalable ones
+    // Filter out dynamic objects (cubes) and spawners (not solid surfaces)
+    this.editorObjects = objects.filter(obj =>
+      !obj.userData.dynamic &&
+      !obj.userData.spawner &&
+      !obj.userData.goal
+    );
   }
 
   /**
@@ -25,13 +33,19 @@ export class PortalPlacement {
     // Combine chamber objects and editor-placed objects
     const allObjects = [...this.chamber.children, ...this.editorObjects];
 
-    const intersects = raycaster
-      .intersectObjects(allObjects, false)
-      .filter(i => i.object.userData.portalable);
+    // Raycast against ALL objects (not just portalable)
+    // This ensures non-portalable surfaces block the raycast
+    const intersects = raycaster.intersectObjects(allObjects, false);
 
     if (intersects.length === 0) return false;
 
     const hit = intersects[0];
+
+    // Check if the hit surface is portalable
+    // If not, reject the placement (but the surface still blocked the raycast)
+    if (!hit.object.userData.portalable) {
+      return false;
+    }
 
     // Check size margin: avoid placing if near wall edges
     const margin = CONFIG.portal.placementMargin;

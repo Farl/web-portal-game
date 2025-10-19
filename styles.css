@@ -124,7 +124,7 @@ body, html {
 }
 
 #render-scale-control {
-  position: fixed; left: 56px; top: 12px; pointer-events: auto;
+  position: fixed; right: 56px; top: 12px; pointer-events: auto;
   background: rgba(255,255,255,0.6); color: #000; border: 1px solid rgba(0,0,0,0.08);
   border-radius: 12px; padding: 8px 10px; backdrop-filter: blur(16px) saturate(120%);
   font-size: 12px; display: flex; align-items: center; gap: 8px;
@@ -240,22 +240,31 @@ body, html {
 }
 
 /* Edit Mode UI */
-#edit-ui {
-  position: fixed;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 280px;
-  background: rgba(0, 0, 0, 0.9);
-  color: #fff;
-  padding: 20px;
-  pointer-events: auto;
-  z-index: 1000;
-  overflow-y: auto;
-}
-
 #edit-ui.hidden {
   display: none;
+}
+
+/* Top Toolbar (Back + Tools) */
+.edit-topbar {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  z-index: 900;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.topbar-divider {
+  width: 1px;
+  height: 32px;
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .edit-toolbar {
@@ -405,4 +414,386 @@ body, html {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+/* Level Slot Selector (Top Right) */
+#level-slot-selector {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  z-index: 900;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.slot-label {
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.slot-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.slot-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: 'Courier New', monospace;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.slot-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.slot-btn.active {
+  background: rgba(100, 200, 255, 0.4);
+  border-color: rgba(100, 200, 255, 0.8);
+  color: #fff;
+  box-shadow: 0 0 8px rgba(100, 200, 255, 0.4);
+}
+
+.slot-reset-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(255, 100, 100, 0.3);
+  background: rgba(255, 100, 100, 0.15);
+  color: rgba(255, 150, 150, 0.9);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin-left: 4px;
+}
+
+.slot-reset-btn:hover {
+  background: rgba(255, 100, 100, 0.3);
+  border-color: rgba(255, 100, 100, 0.6);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(255, 0, 0, 0.2);
+}
+
+.slot-reset-btn i {
+  font-size: 12px;
+}
+
+/* Editor Controls Panel (Bottom Right) */
+#editor-controls-panel {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.controls-toggle {
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  color: rgba(255, 255, 255, 0.8);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.controls-toggle:hover {
+  background: rgba(20, 20, 20, 0.85);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.controls-toggle.active {
+  background: rgba(100, 200, 255, 0.3);
+  border-color: rgba(100, 200, 255, 0.6);
+  color: rgba(100, 200, 255, 1);
+}
+
+.controls-content {
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  min-width: 200px;
+  max-height: 300px;
+  overflow-y: auto;
+  transition: all 0.3s ease;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.controls-content.collapsed {
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
+  max-height: 0;
+  padding: 0;
+  border: none;
+}
+
+.controls-header {
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.controls-header h4 {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 12px;
+  font-weight: 600;
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-family: 'Courier New', monospace;
+}
+
+.controls-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.control-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 3px;
+  transition: background 0.2s ease;
+}
+
+.control-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.control-key {
+  color: rgba(100, 200, 255, 0.9);
+  font-family: 'Courier New', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  background: rgba(100, 200, 255, 0.1);
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid rgba(100, 200, 255, 0.3);
+  white-space: nowrap;
+  min-width: 65px;
+  text-align: center;
+}
+
+.control-desc {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 10px;
+  flex: 1;
+  text-align: right;
+}
+
+/* Custom scrollbar for controls panel */
+.controls-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.controls-content::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+}
+
+.controls-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.controls-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Place Objects Panel (Left Side, Always Visible) */
+#place-objects-panel {
+  position: fixed;
+  left: 16px;
+  top: 80px;
+  z-index: 900;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  min-width: 200px;
+}
+
+.panel-header {
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.panel-header h4 {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 12px;
+  font-weight: 600;
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-family: 'Courier New', monospace;
+}
+
+/* Place Objects Groups */
+.place-group {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 8px;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.place-text-btn {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 13px;
+  text-align: left;
+  font-family: 'Courier New', monospace;
+}
+
+.place-text-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: translateX(2px);
+}
+
+.place-text-btn.active {
+  background: rgba(100, 200, 255, 0.3);
+  border-color: rgba(100, 200, 255, 0.6);
+  box-shadow: 0 0 8px rgba(100, 200, 255, 0.4);
+}
+
+/* Modern Toggle Switch */
+.toggle-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 4px;
+  margin-top: 4px;
+}
+
+.toggle-label {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+  font-family: 'Courier New', monospace;
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 20px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.2);
+  transition: 0.3s;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 2px;
+  bottom: 2px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background-color: rgba(100, 200, 255, 0.6);
+  border-color: rgba(100, 200, 255, 0.8);
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+  transform: translateX(20px);
+  background-color: #fff;
+  box-shadow: 0 1px 4px rgba(100, 200, 255, 0.5);
+}
+
+.toggle-switch input:focus + .toggle-slider {
+  box-shadow: 0 0 4px rgba(100, 200, 255, 0.5);
+}
+
+.toggle-slider:hover {
+  background-color: rgba(255, 255, 255, 0.25);
+}
+
+.toggle-switch input:checked + .toggle-slider:hover {
+  background-color: rgba(100, 200, 255, 0.7);
 }

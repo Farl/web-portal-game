@@ -38,7 +38,7 @@
         <button id="btn-edit-mode" class="menu-btn desktop-only">
           <span class="btn-icon">🛠️</span>
           <span class="btn-text">Editor</span>
-          <span class="btn-desc">(Early Access - No save/load yet)</span>
+          <span class="btn-desc">(3 save slots with auto-save)</span>
         </button>
       </div>
     </div>
@@ -46,46 +46,105 @@
 
   <!-- Edit Mode UI -->
   <div id="edit-ui" class="hidden">
-    <div class="edit-toolbar">
-      <div class="toolbar-section">
-        <button id="btn-exit-edit" class="icon-btn" title="Back to Menu">◄</button>
+    <!-- Top Toolbar with Back Button and Tools -->
+    <div class="edit-topbar">
+      <button id="btn-exit-edit" class="icon-btn" title="Back to Menu">◄</button>
+      <div class="topbar-divider"></div>
+      <div class="icon-buttons">
+        <button class="icon-btn" data-mode="select" title="Select (Q)"><i
+            class="fa-solid fa-hand-pointer"></i></button>
+        <button class="icon-btn active" data-mode="translate" title="Move (W)"><i
+            class="fa-solid fa-up-down-left-right"></i></button>
+        <button class="icon-btn" data-mode="rotate" title="Rotate (E)"><i class="fa-solid fa-rotate"></i></button>
+        <button class="icon-btn" data-mode="scale" title="Scale (R)"><i
+            class="fa-solid fa-up-right-and-down-left-from-center"></i></button>
+        <button id="btn-delete" class="icon-btn danger" title="Delete (Del)"><i
+            class="fa-solid fa-trash"></i></button>
       </div>
-      <div class="toolbar-section">
+    </div>
+
+    <!-- Place Objects Panel (Left Side, Always Visible) -->
+    <div id="place-objects-panel">
+      <div class="panel-header">
         <h4>Place Objects</h4>
-        <div class="object-group">
-          <button id="btn-place-wall" class="toolbar-btn" data-type="wall">Wall</button>
-          <button id="btn-place-platform" class="toolbar-btn" data-type="platform">Platform</button>
-          <label class="toolbar-checkbox">
+      </div>
+
+      <!-- Portalable Objects Group -->
+      <div class="place-group">
+        <button class="place-text-btn" id="btn-place-wall" data-type="wall">Wall</button>
+        <button class="place-text-btn" id="btn-place-platform" data-type="platform">Platform</button>
+
+        <!-- Modern Toggle Switch -->
+        <div class="toggle-container">
+          <span class="toggle-label">Portalable</span>
+          <label class="toggle-switch">
             <input type="checkbox" id="portalable-checkbox" checked>
-            <span>Portalable Surface</span>
+            <span class="toggle-slider"></span>
           </label>
         </div>
-        <button id="btn-place-glass-wall" class="toolbar-btn" data-type="glass-wall">Glass Wall</button>
-        <button id="btn-place-cube" class="toolbar-btn" data-type="cube">Cube</button>
-        <button id="btn-place-goal" class="toolbar-btn" data-type="goal">Goal</button>
-        <button id="btn-place-spawner" class="toolbar-btn" data-type="spawner">Player Spawner</button>
       </div>
-      <div class="toolbar-section">
-        <h4>Tools</h4>
-        <div class="icon-buttons">
-          <button class="icon-btn" data-mode="select" title="Select (Q)"><i
-              class="fa-solid fa-hand-pointer"></i></button>
-          <button class="icon-btn active" data-mode="translate" title="Move (W)"><i
-              class="fa-solid fa-up-down-left-right"></i></button>
-          <button class="icon-btn" data-mode="rotate" title="Rotate (E)"><i class="fa-solid fa-rotate"></i></button>
-          <button class="icon-btn" data-mode="scale" title="Scale (R)"><i
-              class="fa-solid fa-up-right-and-down-left-from-center"></i></button>
-          <button id="btn-delete" class="icon-btn danger" title="Delete (Del)"><i
-              class="fa-solid fa-trash"></i></button>
+
+      <!-- Other Objects -->
+      <div class="place-group">
+        <button class="place-text-btn" id="btn-place-glass-wall" data-type="glass-wall">Glass Wall</button>
+        <button class="place-text-btn" id="btn-place-cube" data-type="cube">Cube</button>
+        <button class="place-text-btn" id="btn-place-goal" data-type="goal">Door</button>
+        <button class="place-text-btn" id="btn-place-spawner" data-type="spawner">Player Spawner</button>
+      </div>
+    </div>
+
+    <!-- Level Slot Selector (Top Right) -->
+    <div id="level-slot-selector">
+      <div class="slot-label">Slot:</div>
+      <div class="slot-buttons">
+        <button class="slot-btn" data-slot="1" title="Slot 1 (Key: 1)">1</button>
+        <button class="slot-btn" data-slot="2" title="Slot 2 (Key: 2)">2</button>
+        <button class="slot-btn" data-slot="3" title="Slot 3 (Key: 3)">3</button>
+      </div>
+      <button id="btn-reset-level" class="slot-reset-btn" title="Reset to Default">
+        <i class="fa-solid fa-rotate-left"></i>
+      </button>
+    </div>
+
+    <!-- Editor Controls Panel (Bottom Right, Compact) -->
+    <div id="editor-controls-panel">
+      <button id="controls-toggle-btn" class="controls-toggle" title="Toggle Controls">
+        <i class="fa-solid fa-keyboard"></i>
+      </button>
+      <div id="controls-content" class="controls-content">
+        <div class="controls-header">
+          <h4>Keys</h4>
         </div>
-      </div>
-      <div class="toolbar-section">
-        <h4>Controls</h4>
-        <p>RMB + WASD: Move camera</p>
-        <p>RMB + Mouse: Look around</p>
-        <p>RMB + Space/Shift: Up/Down</p>
-        <p>Q/W/E/R: Select/Move/Rotate/Scale</p>
-        <p>ESC: Cancel/Deselect</p>
+        <div class="controls-list">
+          <div class="control-item">
+            <span class="control-key">RMB+WASD</span>
+            <span class="control-desc">Move</span>
+          </div>
+          <div class="control-item">
+            <span class="control-key">RMB+Mouse</span>
+            <span class="control-desc">Look</span>
+          </div>
+          <div class="control-item">
+            <span class="control-key">Space/Shift</span>
+            <span class="control-desc">Up/Down</span>
+          </div>
+          <div class="control-item">
+            <span class="control-key">Q/W/E/R</span>
+            <span class="control-desc">Tools</span>
+          </div>
+          <div class="control-item">
+            <span class="control-key">1/2/3</span>
+            <span class="control-desc">Slot</span>
+          </div>
+          <div class="control-item">
+            <span class="control-key">ESC</span>
+            <span class="control-desc">Cancel</span>
+          </div>
+          <div class="control-item">
+            <span class="control-key">Del</span>
+            <span class="control-desc">Delete</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>

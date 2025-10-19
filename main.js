@@ -12,6 +12,7 @@ import { DebugUI } from "./debugUI.js";
 import { PortalPlacement } from "./portalPlacement.js";
 import { PlayerController } from "./playerController.js";
 import { EditMode } from "./editMode.js";
+import { LevelManager } from "./levelManager.js";
 
 /**
  * Main Game - Orchestrates all subsystems
@@ -23,6 +24,11 @@ class PortalGame {
     this.setupStartMenu();
     this.setupRenderScaleControl();
     this.setupUnhandledPromiseHandler();
+
+    // Performance optimization: cache transparent objects
+    this.transparentObjects = [];
+    this.lastCameraPosition = new THREE.Vector3();
+    this.sortThreshold = 0.5; // Only re-sort if camera moved this distance
 
     // Start render loop (but don't start game until mode selected)
     this.lastT = performance.now();
@@ -84,8 +90,12 @@ class PortalGame {
       this.sceneManager.renderer
     );
 
+    // Level manager
+    this.levelManager = new LevelManager();
+
     // Pass level builder reference to edit mode
     this.editMode.setLevelBuilder(this.levelBuilder);
+    this.editMode.setLevelManager(this.levelManager);
 
     // Create default cube (visible in edit mode, used in play mode if no editor cubes)
     this.defaultCube = new PhysicsCube(CONFIG.physics.cubeSize);
@@ -140,8 +150,35 @@ class PortalGame {
     });
   }
 
+  /**
+   * Ensure level data is loaded into editMode
+   * This is important when entering play mode directly without going through edit mode first
+   */
+  ensureLevelLoaded() {
+    // Check if editMode has any objects loaded
+    // If objects array is empty, we need to load the level
+    if (this.editMode.objects.length === 0) {
+      // Load current slot
+      const levelData = this.levelManager.loadLevel();
+      this.levelManager.applyLevel(this.editMode, levelData);
+
+      // Initialize default door (must be after applyLevel)
+      const defaultDoor = this.levelBuilder.getGoal();
+      if (defaultDoor && defaultDoor.parent && !this.editMode.objects.includes(defaultDoor)) {
+        defaultDoor.userData.editorPlaced = true;
+        this.editMode.objects.push(defaultDoor);
+      }
+
+      console.log('[PortalGame] Level data loaded for play mode');
+    }
+  }
+
   startPlayMode() {
     this.mode = 'play';
+
+    // Ensure level data is loaded (important if entering play mode directly)
+    // This will load the current slot and ensure default door is in objects array
+    this.ensureLevelLoaded();
 
     // Hide start menu and show play UI
     document.getElementById('start-menu').classList.add('hidden');
@@ -223,6 +260,9 @@ class PortalGame {
     this.setupLevelComplete();
     this.setupBackToMenu();
 
+    // Refresh transparent objects cache
+    this.refreshTransparentObjects();
+
     // Start game
     this.levelCompleted = false;
     this.levelStartTime = performance.now();
@@ -258,6 +298,9 @@ class PortalGame {
     }
 
     this.editMode.enter();
+
+    // Refresh transparent objects cache
+    this.refreshTransparentObjects();
   }
 
   resetCubesToSpawn() {
@@ -808,28 +851,45 @@ class PortalGame {
   }
 
   /**
-   * Sort transparent objects by distance from camera (back-to-front)
+   * Refresh the cached list of transparent objects
+   * Call this when objects are added/removed from the scene
    */
-  sortTransparentObjects() {
-    const transparentObjects = [];
+  refreshTransparentObjects() {
+    this.transparentObjects = [];
     this.sceneManager.scene.traverse((obj) => {
       if (obj.userData.transparent && obj.isMesh) {
-        transparentObjects.push(obj);
+        this.transparentObjects.push(obj);
       }
     });
+  }
 
-    if (transparentObjects.length === 0) return;
+  /**
+   * Sort transparent objects by distance from camera (back-to-front)
+   * Optimized: only sorts when camera moves significantly
+   */
+  sortTransparentObjects() {
+    // Early exit if no transparent objects
+    if (this.transparentObjects.length === 0) return;
+
+    const cameraPos = this.sceneManager.camera.position;
+
+    // Only re-sort if camera moved significantly
+    const cameraMoved = cameraPos.distanceToSquared(this.lastCameraPosition) > this.sortThreshold * this.sortThreshold;
+
+    if (!cameraMoved) return;
+
+    // Update last camera position
+    this.lastCameraPosition.copy(cameraPos);
 
     // Sort by distance from camera (far to near for proper alpha blending)
-    const cameraPos = this.sceneManager.camera.position;
-    transparentObjects.sort((a, b) => {
+    this.transparentObjects.sort((a, b) => {
       const distA = a.position.distanceToSquared(cameraPos);
       const distB = b.position.distanceToSquared(cameraPos);
       return distB - distA; // Render farthest first
     });
 
     // Update renderOrder based on distance
-    transparentObjects.forEach((obj, index) => {
+    this.transparentObjects.forEach((obj, index) => {
       obj.renderOrder = 1000 + index;
     });
   }
